@@ -4,7 +4,7 @@ import {
   DrawerContentScrollView,
   DrawerItem,
 } from "@react-navigation/drawer";
-import { NavigationContainer, useNavigation } from "@react-navigation/native";
+import { NavigationContainer, useNavigation, useIsFocused } from "@react-navigation/native"; // <--- ✅ AQUÍ ES SU LUGAR CORRECTO
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import DropDownPicker from 'react-native-dropdown-picker';
@@ -30,7 +30,6 @@ import {
   Image,
 } from "react-native";
 import "react-native-gesture-handler";
-
 
 // --- IMPORTANTE: Tu configuración de Firebase ---
 import {
@@ -100,7 +99,7 @@ function LoginScreen() {
           {/* ========================================== */}
           <View style={{ alignItems: 'center', marginBottom: 20 }}>
             <Image 
-              source={require('./assets/buho.png')} 
+              source={require('./assets/assets_buho.png')} 
               style={{ width: 140, height: 140, resizeMode: 'contain' }} 
             />
           </View>
@@ -183,7 +182,7 @@ function CustomDrawerContent(props) {
         {/* AQUÍ ESTÁ TU LOGO DEL BÚHO EN EL MENÚ */}
         {/* ========================================== */}
         <Image 
-          source={require('./assets/buho.png')} 
+          source={require('./assets/assets_buho.png')} 
           style={{ width: 100, height: 100, resizeMode: 'contain', marginBottom: 15 }} 
         />
 
@@ -267,7 +266,7 @@ function AboutScreen() {
       }}>
         {/* Logo de tu escuela */}
         <Image 
-          source={require('./assets/buho.png')} 
+          source={require('./assets/assets_buho.png')} 
           style={{ width: 120, height: 120, resizeMode: 'contain', marginBottom: 20 }} 
         />
         
@@ -303,7 +302,7 @@ function AboutScreen() {
 }
 
 // ==========================================
-// 2. PANTALLA DE DETALLES (Actualizada con Admin, Baja y Reactivación)
+// 2. PANTALLA DE DETALLES (Actualizada con Marca y No. Serie)
 // ==========================================
 function DetailScreen({ route, navigation }) {
   const { userData } = useContext(AuthContext); 
@@ -315,7 +314,7 @@ function DetailScreen({ route, navigation }) {
   const [nombreAlumno, setNombreAlumno] = useState("");
   const [matriculaAlumno, setMatriculaAlumno] = useState("");
   
-  // NUEVO: Estados para el Modal de Motivos (Baja/Reactivar)
+  // Estados para el Modal de Motivos (Baja/Reactivar)
   const [reasonModalVisible, setReasonModalVisible] = useState(false);
   const [reasonActionType, setReasonActionType] = useState(""); // "BAJA" o "REACTIVAR"
   const [reasonText, setReasonText] = useState("");
@@ -325,7 +324,7 @@ function DetailScreen({ route, navigation }) {
   // Normalización de estados
   const estadoNormalizado = item.estado ? item.estado.toUpperCase() : "DESCONOCIDO";
   const isPrestado = estadoNormalizado === "PRESTADO";
-  const isFueraDeServicio = estadoNormalizado === "FUERA DE SERVICIO"; // NUEVO
+  const isFueraDeServicio = estadoNormalizado === "FUERA DE SERVICIO"; 
 
   // Determinar color del estado
   let statusColor = SUCCESS_COLOR;
@@ -353,6 +352,7 @@ function DetailScreen({ route, navigation }) {
     try {
       await updateDoc(doc(db, "Equipos", item.id), {
         estado: "PRESTADO",
+        usuarioActual: userData?.nombre || "Usuario Móvil",
         alumno_nombre: nombreAlumno,
         alumno_matricula: matriculaAlumno,
         poseedor_actual: `${nombreAlumno} (${matriculaAlumno})`,
@@ -385,7 +385,7 @@ function DetailScreen({ route, navigation }) {
     }
   };
 
-  // --- NUEVA FUNCIÓN: PROCESAR BAJA O REACTIVACIÓN ---
+  // --- PROCESAR BAJA O REACTIVACIÓN ---
   const handleConfirmReasonAction = async () => {
     if (reasonText.trim() === "") {
       return Alert.alert("Campo vacío", "Por favor ingresa un motivo para el historial.");
@@ -400,7 +400,7 @@ function DetailScreen({ route, navigation }) {
       // 1. Actualizamos el documento
       await updateDoc(doc(db, "Equipos", item.id), {
         estado: nuevoEstado,
-        usuarioActual: "Ninguno",
+        usuarioActual: userData?.nombre || "Usuario Móvil",
         alumno_nombre: "",
         alumno_matricula: "",
         poseedor_actual: "",
@@ -420,7 +420,7 @@ function DetailScreen({ route, navigation }) {
       setItem({
         ...item,
         estado: nuevoEstado,
-        usuarioActual: "Ninguno",
+        usuarioActual: userData?.nombre || "Usuario Móvil",
         alumno_nombre: "",
         alumno_matricula: "",
       });
@@ -476,6 +476,20 @@ function DetailScreen({ route, navigation }) {
           <Text style={styles.value}>{item.id}</Text>
           <Text style={styles.label}>Categoría</Text>
           <Text style={styles.value}>{item.categoria || "General"}</Text>
+
+          {/* --- NUEVO: MARCA Y NÚMERO DE SERIE --- */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={[styles.label, { marginTop: 0 }]}>Marca</Text>
+              <Text style={styles.value}>{item.marca || "No registrada"}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.label, { marginTop: 0 }]}>No. de Serie</Text>
+              <Text style={styles.value}>{item.no_serie || "No registrado"}</Text>
+            </View>
+          </View>
+          {/* ---------------------------------------- */}
+
           <Text style={styles.label}>Estado Actual</Text>
           <Text
             style={[
@@ -519,7 +533,7 @@ function DetailScreen({ route, navigation }) {
                 gap: 15
               }}
             >
-              {/* BOTÓN EDITAR: Visible para Admin y Superadmin */}
+              {/* BOTÓN EDITAR */}
               <TouchableOpacity
                 onPress={() => navigation.navigate("EditProduct", { item })}
                 style={{ flexDirection: "row", alignItems: "center" }}
@@ -528,7 +542,7 @@ function DetailScreen({ route, navigation }) {
                 <Text style={{ color: PRIMARY_COLOR, marginLeft: 5, fontWeight: "bold" }}>EDITAR</Text>
               </TouchableOpacity>
 
-              {/* BOTÓN BAJA/REACTIVAR: Visible para Admin y Superadmin */}
+              {/* BOTÓN BAJA/REACTIVAR */}
               {!isFueraDeServicio ? (
                 <TouchableOpacity
                   onPress={() => openReasonModal("BAJA")}
@@ -628,7 +642,8 @@ function DetailScreen({ route, navigation }) {
         <View style={{ height: 50 }} />
       </ScrollView>
 
-      {/* --- MODAL DE PRÉSTAMO --- */}
+      {/* --- MODALES --- */}
+      {/* MODAL DE PRÉSTAMO */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -680,7 +695,7 @@ function DetailScreen({ route, navigation }) {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* --- NUEVO MODAL PARA BAJA / REACTIVACIÓN --- */}
+      {/* MODAL PARA BAJA / REACTIVACIÓN */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -745,16 +760,28 @@ function DetailScreen({ route, navigation }) {
 
 
 // ==========================================
-// 3. PANTALLA PRINCIPAL (LISTA)
+// 3. PANTALLA PRINCIPAL 
 // ==========================================
+
 function InventoryScreen() {
   const navigation = useNavigation();
-  const { userData } = useContext(AuthContext); // Verificamos si es admin
+  const { userData } = useContext(AuthContext);
 
-  // --- PASO 1: ESTADOS DEL BUSCADOR ---
   const [equipos, setEquipos] = useState([]);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  // --- NUEVO: DICCIONARIO DE ÍCONOS Y COLORES POR CATEGORÍA ---
+  const categoryConfig = {
+    "CÓMPUTO": { icon: "💻", color: "#4A90E2" }, // Azul
+    "COMPUTO": { icon: "💻", color: "#4A90E2" }, // Por si lo escriben sin acento
+    "AUDIOVISUAL": { icon: "📽️", color: "#E94A67" }, // Rosa/Rojo
+    "REDES": { icon: "🌐", color: "#50E3C2" }, // Turquesa
+    "ACCESORIOS": { icon: "🔌", color: "#F5A623" }, // Naranja
+    "MOBILIARIO": { icon: "🪑", color: "#8B572A" }, // Café
+    "GENERAL": { icon: "📦", color: "#9B9B9B" }, // Gris
+  };
 
   const cargarDatos = async () => {
     try {
@@ -773,67 +800,85 @@ function InventoryScreen() {
     return unsubscribe;
   }, [navigation]);
 
-  // ==========================================
-  // 2: LÓGICA DE FILTRADO ---
-  // ==========================================
+  // A. Búsqueda global
   const filteredEquipos = equipos.filter((item) => {
     const query = searchText.toLowerCase();
-    const nombreMatch = item.nombre
-      ? item.nombre.toLowerCase().includes(query)
-      : false;
+    const nombreMatch = item.nombre ? item.nombre.toLowerCase().includes(query) : false;
     const idMatch = item.id ? item.id.toLowerCase().includes(query) : false;
-    const categoriaMatch = item.categoria
-      ? item.categoria.toLowerCase().includes(query)
-      : false;
-
-    return nombreMatch || idMatch || categoriaMatch;
+    return nombreMatch || idMatch;
   });
 
+  // B. Lista de la categoría seleccionada
+  const categoryEquipos = equipos.filter((item) => {
+    const cat = item.categoria ? item.categoria.toUpperCase() : "GENERAL";
+    return cat === selectedCategory;
+  });
+
+  // C. Extraer categorías únicas
+  const categoriasData = equipos.reduce((acc, item) => {
+    const cat = item.categoria ? item.categoria.toUpperCase() : "GENERAL";
+    if (!acc[cat]) { acc[cat] = 0; }
+    acc[cat]++;
+    return acc;
+  }, {});
+
+  const listaCategorias = Object.keys(categoriasData).map(key => ({
+    nombre: key,
+    cantidad: categoriasData[key]
+  })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  // ==========================================
+  // DISEÑO DE LOS ELEMENTOS
+  // ==========================================
+  
   const renderItem = ({ item }) => {
-    // 1. Normalizamos el texto del estado
     const estadoActual = item.estado ? item.estado.toUpperCase() : "DISPONIBLE";
-    
-    // 2. Determinamos las banderas de estado
     const isPrestado = estadoActual === "PRESTADO";
     const isFueraDeServicio = estadoActual === "FUERA DE SERVICIO";
 
-    // 3. Asignamos el color dinámico en base a los 3 estados posibles
-    let statusColor = SUCCESS_COLOR; // Verde por defecto
-    if (isPrestado) {
-      statusColor = DANGER_COLOR; // Rojo si está prestado
-    } else if (isFueraDeServicio) {
-      statusColor = "#616161"; // Gris si está fuera de servicio (dado de baja)
-    }
+    let statusColor = SUCCESS_COLOR; 
+    if (isPrestado) { statusColor = DANGER_COLOR; } 
+    else if (isFueraDeServicio) { statusColor = "#616161"; }
 
     return (
       <TouchableOpacity
         style={styles.card}
         onPress={() => navigation.navigate("Detalles", { item: item })}
       >
-        {/* Indicador lateral con el color dinámico */}
-        <View
-          style={[styles.cardIndicator, { backgroundColor: statusColor }]}
-        />
-
+        <View style={[styles.cardIndicator, { backgroundColor: statusColor }]} />
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle}>{item.nombre || "Sin nombre"}</Text>
           <Text style={styles.cardSubtitle}>ID: {item.id}</Text>
-
-          {/* Texto del estado con el color dinámico */}
           <Text style={[styles.cardStatus, { color: statusColor, fontWeight: "bold" }]}>
             {estadoActual}
           </Text>
         </View>
-
-        {/* Flecha de la derecha con el color dinámico para que combine */}
         <Ionicons name="chevron-forward" size={20} color={statusColor} />
       </TouchableOpacity>
     );
   };
 
-  // ==========================================
-  // 3: INTERFAZ ACTUALIZADA ---
-  // ==========================================
+  // NUEVO DISEÑO: Tarjetas de categoría con Emojis
+  const renderCategoria = ({ item }) => {
+    // Buscamos la configuración de la categoría. Si no existe, usamos una por defecto.
+    const config = categoryConfig[item.nombre] || { icon: "📁", color: PRIMARY_COLOR };
+
+    return (
+      <TouchableOpacity
+        style={[styles.categoryCard, { borderColor: config.color }]}
+        onPress={() => setSelectedCategory(item.nombre)}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: config.color + "20" }]}>
+          <Text style={styles.categoryIcon}>{config.icon}</Text>
+        </View>
+        <Text style={styles.categoryName}>{item.nombre}</Text>
+        <Text style={styles.categoryCount}>
+          {item.cantidad} {item.cantidad === 1 ? "artículo" : "artículos"}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={PRIMARY_COLOR} />
@@ -845,56 +890,26 @@ function InventoryScreen() {
         <Text style={styles.bigButtonText}>ESCANEAR PRODUCTO</Text>
       </TouchableOpacity>
 
-      {/* ENCABEZADO DINÁMICO DEL BUSCADOR */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 15,
-          marginTop: 10,
-        }}
-      >
+      <View style={styles.headerRow}>
         {isSearchActive ? (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              flex: 1,
-              backgroundColor: CARD_COLOR,
-              borderRadius: 8,
-              paddingHorizontal: 10,
-              borderWidth: 1,
-              borderColor: "#333",
-            }}
-          >
+          <View style={styles.searchContainer}>
             <Ionicons name="search" size={20} color="#888" />
             <TextInput
-              style={{
-                flex: 1,
-                color: TEXT_COLOR,
-                paddingVertical: 10,
-                paddingHorizontal: 10,
-              }}
-              placeholder="Buscar por nombre, ID o categoría..."
+              style={styles.searchInput}
+              placeholder="Buscar producto..."
               placeholderTextColor="#888"
               value={searchText}
               onChangeText={setSearchText}
-              autoFocus // Abre el teclado automáticamente
+              autoFocus
             />
-            <TouchableOpacity
-              onPress={() => {
-                setIsSearchActive(false);
-                setSearchText(""); // Limpiamos la búsqueda al cerrar
-              }}
-            >
+            <TouchableOpacity onPress={() => { setIsSearchActive(false); setSearchText(""); }}>
               <Ionicons name="close-circle" size={24} color="#888" />
             </TouchableOpacity>
           </View>
         ) : (
           <>
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
-              Todos los artículos
+            <Text style={styles.sectionTitle}>
+              {selectedCategory ? selectedCategory : "Categorías"}
             </Text>
             <TouchableOpacity onPress={() => setIsSearchActive(true)}>
               <Ionicons name="search" size={28} color={PRIMARY_COLOR} />
@@ -903,29 +918,45 @@ function InventoryScreen() {
         )}
       </View>
 
-      {/* LISTA ACTUALIZADA CON LOS DATOS FILTRADOS */}
-      <FlatList
-        data={filteredEquipos}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 80 }}
-        ListEmptyComponent={
-          <Text
-            style={{
-              color: "#888",
-              textAlign: "center",
-              marginTop: 50,
-              fontSize: 16,
-            }}
+      {searchText !== "" ? (
+        <FlatList
+          key="search-list"
+          data={filteredEquipos}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingBottom: 80 }}
+          ListEmptyComponent={<Text style={styles.emptyText}>No se encontraron resultados.</Text>}
+        />
+      ) : selectedCategory ? (
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity 
+            onPress={() => setSelectedCategory(null)} 
+            style={styles.backButton}
           >
-            {searchText !== ""
-              ? "No se encontraron resultados."
-              : "No hay equipos registrados."}
-          </Text>
-        }
-      />
+            <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
+            <Text style={styles.backButtonText}>Volver a categorías</Text>
+          </TouchableOpacity>
 
-      {/* BOTÓN FLOTANTE SOLO PARA ADMINS */}
+          <FlatList
+            key="category-list"
+            data={categoryEquipos}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 80 }}
+          />
+        </View>
+      ) : (
+        <FlatList
+          key="grid-list"
+          data={listaCategorias}
+          renderItem={renderCategoria}
+          keyExtractor={(item) => item.nombre}
+          numColumns={2} 
+          contentContainerStyle={{ paddingBottom: 80 }}
+          ListEmptyComponent={<Text style={styles.emptyText}>No hay categorías registradas.</Text>}
+        />
+      )}
+
       {userData?.rol === "admin" && (
         <TouchableOpacity
           style={styles.fab}
@@ -939,16 +970,20 @@ function InventoryScreen() {
 }
 
 // ==========================================
-// 4. PANTALLA DE ESCÁNER (Con Candado 🔒, Beep 🔊 y Vibración 📳)
+// 4. PANTALLA DE ESCÁNER (Con Candado 🔒, Beep 🔊, Vibración 📳 y Fix de Cámara Fantasma 👻)
 // ==========================================
 function ScannerScreen({ route, navigation }) {
   const { userData } = useContext(AuthContext);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  
+  // --- NUEVO: Hook para saber si la pantalla está activa ---
+  const isFocused = useIsFocused(); 
+
   const { returnMode, expectedId, mode } = route.params || {};
   const isProcessing = useRef(false);
   // Cargamos el sonido de forma moderna y optimizada
-const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+  const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
 
   if (!permission) return <View style={styles.container} />;
   
@@ -970,9 +1005,9 @@ const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_
     isProcessing.current = true;
     setScanned(true);
 
-    // ---> NUEVO: EJECUTAMOS VIBRACIÓN Y SONIDO <---
-    Vibration.vibrate(100); // Vibra por 100 milisegundos (un toque rápido y elegante)
-    player.play(); // Reproduce el sonido de confirmación
+    // EJECUTAMOS VIBRACIÓN Y SONIDO
+    Vibration.vibrate(100); 
+    player.play(); 
 
     if (mode === "add") {
       navigation.navigate("AddProduct", { scannedId: data });
@@ -991,6 +1026,7 @@ const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_
 
           await updateDoc(equipoRef, {
             estado: "DISPONIBLE",
+            usuarioActual: userData?.nombre || "Usuario Móvil",
             alumno_nombre: "",
             alumno_matricula: "",
             poseedor_actual: "",
@@ -1020,8 +1056,7 @@ const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_
           isProcessing.current = false;
         }
       } else {
-        // Podrías poner otra vibración distinta si hay error, por ejemplo:
-        // Vibration.vibrate([0, 100, 100, 100]); // Patrón de error
+        Vibration.vibrate(); 
         Alert.alert("⛔ Error", `El código no coincide.`, [
           { 
             text: "Reintentar", 
@@ -1060,11 +1095,15 @@ const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_
 
   return (
     <View style={{ flex: 1, backgroundColor: "black" }}>
-      <CameraView
-        style={StyleSheet.absoluteFillObject}
-        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-      />
+      {/* --- NUEVO: CONDICIÓN isFocused --- */}
+      {isFocused && (
+        <CameraView
+          style={StyleSheet.absoluteFillObject}
+          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+        />
+      )}
+      
       <View style={styles.overlay}>
         <Text style={styles.overlayText}>
           {mode === "add"
@@ -1085,14 +1124,18 @@ const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_
 }
 
 // ==========================================
-// 5. PANTALLA AGREGAR PRODUCTO (Actualizada con escáner)
+// 5. PANTALLA AGREGAR PRODUCTO (Actualizada con escáner, Marca y No. Serie)
 // ==========================================
 function AddProductScreen({ navigation, route }) {
   const { userData } = useContext(AuthContext);
   const [idQr, setIdQr] = useState("");
   const [nombre, setNombre] = useState("");
+  // --- NUEVOS ESTADOS ---
+  const [marca, setMarca] = useState("");
+  const [noSerie, setNoSerie] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [loading, setLoading] = useState(false);
+  
   // Estados para el Dropdown de Categorías
   const [open, setOpen] = useState(false);
   const [categoria, setCategoria] = useState("Cómputo");
@@ -1105,11 +1148,10 @@ function AddProductScreen({ navigation, route }) {
     { label: '📦 General', value: 'General' }
   ]);
 
-  // --- NUEVO: Escuchar si venimos del escáner ---
+  // Escuchar si venimos del escáner
   useEffect(() => {
     if (route.params?.scannedId) {
       setIdQr(route.params.scannedId);
-      // Limpiamos el parámetro para que no se quede pegado si navegamos de nuevo
       navigation.setParams({ scannedId: undefined });
     }
   }, [route.params?.scannedId]);
@@ -1130,9 +1172,12 @@ function AddProductScreen({ navigation, route }) {
         return;
       }
 
+      // --- AQUÍ GUARDAMOS LOS NUEVOS DATOS EN FIREBASE ---
       await setDoc(equipoRef, {
         id_qr: idQr.trim(),
         nombre: nombre,
+        marca: marca,             // Nuevo campo
+        no_serie: noSerie,        // Nuevo campo
         categoria: categoria || "General",
         descripcion: descripcion,
         estado: "DISPONIBLE",
@@ -1159,15 +1204,7 @@ function AddProductScreen({ navigation, route }) {
         <Text style={styles.headerTitle}>Nuevo Equipo</Text>
 
         <Text style={styles.inputLabel}>ID del Equipo (Código QR):</Text>
-
-        {/* --- NUEVO: Fila con el Input y el Botón de Escanear --- */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            marginBottom: 15,
-          }}
-        >
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 15 }}>
           <TextInput
             style={[styles.input, { flex: 1, marginBottom: 0 }]}
             placeholder="Ej. EQ-010"
@@ -1194,15 +1231,34 @@ function AddProductScreen({ navigation, route }) {
         <Text style={styles.inputLabel}>Nombre del Artículo:</Text>
         <TextInput
           style={styles.input}
-          placeholder="Ej. Proyector Epson"
+          placeholder="Ej. Proyector"
           placeholderTextColor="#888"
           value={nombre}
           onChangeText={setNombre}
         />
 
+        {/* --- NUEVO INPUT: MARCA --- */}
+        <Text style={styles.inputLabel}>Marca:</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. Epson, Dell, HP..."
+          placeholderTextColor="#888"
+          value={marca}
+          onChangeText={setMarca}
+        />
+
+        {/* --- NUEVO INPUT: NÚMERO DE SERIE --- */}
+        <Text style={styles.inputLabel}>Número de Serie:</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. SN123456789"
+          placeholderTextColor="#888"
+          value={noSerie}
+          onChangeText={setNoSerie}
+          autoCapitalize="characters"
+        />
+
         <Text style={styles.inputLabel}>Categoría:</Text>
-        
-        {/* Contenedor del Dropdown */}
         <View style={{ marginBottom: 15, zIndex: 1000 }}>
           <DropDownPicker
             open={open}
@@ -1211,33 +1267,13 @@ function AddProductScreen({ navigation, route }) {
             setOpen={setOpen}
             setValue={setCategoria}
             setItems={setItems}
-            theme="DARK" // ¡Ya trae modo oscuro nativo!
+            theme="DARK"
             placeholder="Selecciona una categoría"
-            
-            // Estilo de la caja principal
-            style={{
-              backgroundColor: "#1E1E1E", // El color de tus inputs
-              borderColor: "#333",
-              borderRadius: 8,
-            }}
-            
-            // Estilo de la lista que se despliega
-            dropDownContainerStyle={{
-              backgroundColor: "#1E1E1E",
-              borderColor: "#333",
-            }}
-            
-            // Estilo del texto
-            textStyle={{
-              color: "white",
-              fontSize: 16
-            }}
-            
-            // MUY IMPORTANTE si lo usas dentro de un ScrollView:
+            style={{ backgroundColor: "#1E1E1E", borderColor: "#333", borderRadius: 8 }}
+            dropDownContainerStyle={{ backgroundColor: "#1E1E1E", borderColor: "#333" }}
+            textStyle={{ color: "white", fontSize: 16 }}
             listMode="SCROLLVIEW" 
-            scrollViewProps={{
-              nestedScrollEnabled: true,
-            }}
+            scrollViewProps={{ nestedScrollEnabled: true }}
           />
         </View>
 
@@ -1271,15 +1307,18 @@ function AddProductScreen({ navigation, route }) {
 // 5.1. PANTALLA EDITAR PRODUCTO (SOLO ADMIN)
 // ==========================================
 function EditProductScreen({ route, navigation }) {
-  const { item } = route.params; // Recibimos el equipo actual
+  const { item } = route.params;
 
-  // Inicializamos los inputs con los datos que ya existen
+  // Inicializamos los inputs con los datos existentes, incluyendo Marca y Serie
   const [nombre, setNombre] = useState(item.nombre || "");
+  const [marca, setMarca] = useState(item.marca || "");       // Nuevo
+  const [noSerie, setNoSerie] = useState(item.no_serie || ""); // Nuevo
   const [descripcion, setDescripcion] = useState(item.descripcion || "");
   const [loading, setLoading] = useState(false);
+  
   // Estados para el Dropdown de Categorías
   const [open, setOpen] = useState(false);
-  const [categoria, setCategoria] = useState("Cómputo");
+  const [categoria, setCategoria] = useState(item.categoria || "Cómputo");
   const [items, setItems] = useState([
     { label: '💻 Cómputo (Laptops, Teclados, Mouse)', value: 'Cómputo' },
     { label: '📽️ Audiovisual (Proyectores)', value: 'Audiovisual' },
@@ -1298,15 +1337,21 @@ function EditProductScreen({ route, navigation }) {
     setLoading(true);
     try {
       const equipoRef = doc(db, "Equipos", item.id);
+      
+      // --- AQUÍ ACTUALIZAMOS LOS DATOS EN FIREBASE ---
       await updateDoc(equipoRef, {
         nombre: nombre,
+        marca: marca,             // Nuevo campo
+        no_serie: noSerie,        // Nuevo campo
         categoria: categoria || "General",
         descripcion: descripcion,
       });
 
       Alert.alert("¡Actualizado!", "Los datos del equipo han sido guardados.");
+      
+      // Pasamos los nuevos datos de vuelta a la pantalla de detalles
       navigation.navigate("Detalles", {
-        item: { ...item, nombre, categoria, descripcion },
+        item: { ...item, nombre, marca, no_serie: noSerie, categoria, descripcion },
       });
     } catch (error) {
       Alert.alert("Error", "No se pudo actualizar: " + error.message);
@@ -1320,7 +1365,6 @@ function EditProductScreen({ route, navigation }) {
       <View style={styles.detailCard}>
         <Text style={styles.headerTitle}>Editar Equipo</Text>
 
-        {/* El ID se muestra pero no se puede editar (deshabilitado) para no romper la base de datos */}
         <Text style={styles.inputLabel}>ID del Equipo (Código QR):</Text>
         <TextInput
           style={[styles.input, { backgroundColor: "#222", color: "#666" }]}
@@ -1336,9 +1380,28 @@ function EditProductScreen({ route, navigation }) {
           onChangeText={setNombre}
         />
 
+        {/* --- NUEVO INPUT: MARCA --- */}
+        <Text style={styles.inputLabel}>Marca:</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. Epson, Dell, HP..."
+          placeholderTextColor="#888"
+          value={marca}
+          onChangeText={setMarca}
+        />
+
+        {/* --- NUEVO INPUT: NÚMERO DE SERIE --- */}
+        <Text style={styles.inputLabel}>Número de Serie:</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej. SN123456789"
+          placeholderTextColor="#888"
+          value={noSerie}
+          onChangeText={setNoSerie}
+          autoCapitalize="characters"
+        />
+
         <Text style={styles.inputLabel}>Categoría:</Text>
-        
-        {/* Contenedor del Dropdown */}
         <View style={{ marginBottom: 15, zIndex: 1000 }}>
           <DropDownPicker
             open={open}
@@ -1347,33 +1410,13 @@ function EditProductScreen({ route, navigation }) {
             setOpen={setOpen}
             setValue={setCategoria}
             setItems={setItems}
-            theme="DARK" // ¡Ya trae modo oscuro nativo!
+            theme="DARK"
             placeholder="Selecciona una categoría"
-            
-            // Estilo de la caja principal
-            style={{
-              backgroundColor: "#1E1E1E", // El color de tus inputs
-              borderColor: "#333",
-              borderRadius: 8,
-            }}
-            
-            // Estilo de la lista que se despliega
-            dropDownContainerStyle={{
-              backgroundColor: "#1E1E1E",
-              borderColor: "#333",
-            }}
-            
-            // Estilo del texto
-            textStyle={{
-              color: "white",
-              fontSize: 16
-            }}
-            
-            // MUY IMPORTANTE si lo usas dentro de un ScrollView:
+            style={{ backgroundColor: "#1E1E1E", borderColor: "#333", borderRadius: 8 }}
+            dropDownContainerStyle={{ backgroundColor: "#1E1E1E", borderColor: "#333" }}
+            textStyle={{ color: "white", fontSize: 16 }}
             listMode="SCROLLVIEW" 
-            scrollViewProps={{
-              nestedScrollEnabled: true,
-            }}
+            scrollViewProps={{ nestedScrollEnabled: true }}
           />
         </View>
 
@@ -1761,7 +1804,7 @@ const styles = StyleSheet.create({
   },
   textStyle: { color: "white", fontWeight: "bold", textAlign: "center" },
 
-  // --- NUEVO ESTILO: BOTÓN FLOTANTE ---
+  // --- BOTÓN FLOTANTE ---
   fab: {
     position: "absolute",
     width: 60,
@@ -1777,5 +1820,82 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3,
+  },
+
+  // ==========================================
+  // --- NUEVOS ESTILOS PARA LAS CARPETAS ---
+  // ==========================================
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    backgroundColor: CARD_COLOR,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  searchInput: {
+    flex: 1,
+    color: TEXT_COLOR,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  emptyText: {
+    color: "#888",
+    textAlign: "center",
+    marginTop: 50,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  backButtonText: {
+    color: PRIMARY_COLOR,
+    fontSize: 16,
+    fontWeight: "bold",
+    marginLeft: 5,
+  },
+  categoryCard: {
+    flex: 1,
+    backgroundColor: CARD_COLOR,
+    margin: 8,
+    paddingVertical: 25,
+    paddingHorizontal: 10,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    minHeight: 140,
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  categoryIcon: {
+    fontSize: 32,
+  },
+  categoryName: {
+    color: TEXT_COLOR,
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 15,
+  },
+  categoryCount: {
+    color: "#aaa",
+    fontSize: 12,
+    marginTop: 5,
+    textAlign: "center",
   },
 });
