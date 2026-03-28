@@ -7,6 +7,7 @@ import {
 import { NavigationContainer, useNavigation, useIsFocused } from "@react-navigation/native"; // <--- ✅ AQUÍ ES SU LUGAR CORRECTO
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { useAudioPlayer } from 'expo-audio';
 import { createContext, useContext, useEffect, useState, useRef } from "react";
@@ -28,6 +29,7 @@ import {
   View,
   Vibration,
   Image,
+  useColorScheme,
 } from "react-native";
 import "react-native-gesture-handler";
 
@@ -144,12 +146,24 @@ function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
-
 // ==========================================
 // 1. MENÚ LATERAL (DRAWER)
 // ==========================================
 function CustomDrawerContent(props) {
   const { userData } = useContext(AuthContext); // Extraemos datos del contexto
+
+  // --- DETECCIÓN DE MODO OSCURO ---
+  const colorScheme = useColorScheme(); // Asegúrate de tener esto importado de 'react-native'
+  const isDarkMode = colorScheme === 'dark';
+
+  // --- COLORES DINÁMICOS ---
+  const theme = {
+    background: isDarkMode ? "#121212" : "#F5F5F5",
+    cardBg: isDarkMode ? "#1E1E1E" : "#FFFFFF",
+    text: isDarkMode ? "#FFFFFF" : "#333333",
+    subText: isDarkMode ? "#AAAAAA" : "#666666",
+    border: isDarkMode ? "#333333" : "#E0E0E0",
+  };
 
   const handleLogout = () => {
     Alert.alert("Cerrar Sesión", "¿Estás seguro que deseas salir?", [
@@ -162,19 +176,19 @@ function CustomDrawerContent(props) {
     <DrawerContentScrollView
       {...props}
       contentContainerStyle={{ paddingTop: 0 }}
-      style={{ backgroundColor: BACKGROUND_COLOR }} // <-- AGREGAMOS ESTO
+      style={{ backgroundColor: theme.background }} // <-- Fondo dinámico principal
     >
       <View
         style={[
           styles.drawerHeader,
           {
-            backgroundColor: CARD_COLOR,
+            backgroundColor: theme.cardBg, // <-- Fondo de la cabecera dinámico
             padding: 20,
-            paddingTop: 40, // Agregamos un poco de espacio arriba
+            paddingTop: 40, 
             paddingBottom: 30,
             borderBottomWidth: 1,
-            borderBottomColor: "#333",
-            alignItems: "center", // Centramos todo el contenido
+            borderBottomColor: theme.border, // <-- Línea separadora dinámica
+            alignItems: "center", 
           },
         ]}
       >
@@ -189,16 +203,16 @@ function CustomDrawerContent(props) {
         <Text
           style={[
             styles.drawerName,
-            { color: "white", fontSize: 18, fontWeight: "bold", textAlign: "center" },
+            { color: theme.text, fontSize: 18, fontWeight: "bold", textAlign: "center" }, // <-- Nombre dinámico
           ]}
         >
           {userData?.nombre || "Cargando Usuario..."}
         </Text>
-        <Text style={[styles.drawerEmail, { color: "#AAA", fontSize: 14, textAlign: "center", marginTop: 2 }]}>
-          {userData?.email || ""}
+        <Text style={[styles.drawerEmail, { color: theme.subText, fontSize: 14, textAlign: "center", marginTop: 2 }]}>
+          {userData?.email || ""} 
         </Text>
         
-        {/* Etiqueta de Admin visual */}
+        {/* Etiqueta de Admin visual (Esta la dejamos fija en dorado porque es un resaltado) */}
         {userData?.rol === "admin" && (
           <Text
             style={{
@@ -218,8 +232,8 @@ function CustomDrawerContent(props) {
         {/* Botón de Inicio */}
         <DrawerItem
           label="Inicio"
-          labelStyle={{ color: TEXT_COLOR, fontSize: 16 }}
-          icon={() => <Ionicons name="home" size={22} color={PRIMARY_COLOR} />}
+          labelStyle={{ color: theme.text, fontSize: 16 }} // <-- Texto dinámico
+          icon={() => <Ionicons name="home" size={22} color={PRIMARY_COLOR} />} // Mantenemos tu color primario (naranja)
           onPress={() =>
             props.navigation.navigate("Main", { screen: "InventoryList" })
           }
@@ -228,14 +242,14 @@ function CustomDrawerContent(props) {
         {/* NUEVO BOTÓN: ACERCA DE */}
         <DrawerItem
           label="Acerca de"
-          labelStyle={{ color: TEXT_COLOR, fontSize: 16 }}
+          labelStyle={{ color: theme.text, fontSize: 16 }} // <-- Texto dinámico
           icon={() => <Ionicons name="information-circle" size={22} color={PRIMARY_COLOR} />}
           onPress={() =>
-            props.navigation.navigate("About") // Redirige a la pantalla About
+            props.navigation.navigate("About") 
           }
         />
 
-        {/* Botón de Cerrar Sesión */}
+        {/* Botón de Cerrar Sesión (Se queda rojo por ser de peligro/alerta) */}
         <DrawerItem
           label="Cerrar Sesión"
           labelStyle={{ color: DANGER_COLOR, fontSize: 16, fontWeight: "bold" }}
@@ -246,58 +260,117 @@ function CustomDrawerContent(props) {
     </DrawerContentScrollView>
   );
 }
-
 // ==========================================
-// PANTALLA: ACERCA DEL DESARROLLADOR
+// PANTALLA ACERCA DE (Profesional / Titulación)
 // ==========================================
 function AboutScreen() {
+  // --- DETECCIÓN DE MODO OSCURO ---
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+
+  const theme = {
+    background: isDarkMode ? "#121212" : "#F5F5F5",
+    cardBg: isDarkMode ? "#1E1E1E" : "#FFFFFF",
+    text: isDarkMode ? "#FFFFFF" : "#333333",
+    subText: isDarkMode ? "#AAAAAA" : "#666666",
+    border: isDarkMode ? "#444444" : "#DDDDDD",
+    primary: "#E65100", // PRIMARY_COLOR (Ajusta si tienes otra variable global)
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: BACKGROUND_COLOR, padding: 20, justifyContent: 'center' }}>
-      <View style={{ 
-        backgroundColor: CARD_COLOR, 
-        padding: 30, 
-        borderRadius: 15, 
-        alignItems: 'center',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 5,
-        elevation: 8
-      }}>
-        {/* Logo de tu escuela */}
-        <Image 
-          source={require('./assets/assets_buho.png')} 
-          style={{ width: 120, height: 120, resizeMode: 'contain', marginBottom: 20 }} 
-        />
-        
-        <Text style={{ color: PRIMARY_COLOR, fontSize: 26, fontWeight: 'bold', marginBottom: 5 }}>
-          SIGAT Móvil
-        </Text>
-        <Text style={{ color: "#AAA", fontSize: 16, marginBottom: 25 }}>
-          Sistema de Inventario
-        </Text>
-
-        {/* Datos del desarrollador */}
-        <View style={{ width: '100%', borderTopWidth: 1, borderTopColor: '#333', paddingTop: 20 }}>
-          <Text style={{ color: TEXT_COLOR, fontSize: 18, marginBottom: 10 }}>
-            <Text style={{ fontWeight: 'bold', color: PRIMARY_COLOR }}>Desarrollador: </Text> 
-            Ulises González Hernández
-          </Text>
-          <Text style={{ color: TEXT_COLOR, fontSize: 18, marginBottom: 10 }}>
-            <Text style={{ fontWeight: 'bold', color: PRIMARY_COLOR }}>Grado: </Text> 
-            8 Semestre de Ingeniería en Software
-          </Text>
-          <Text style={{ color: TEXT_COLOR, fontSize: 18, marginBottom: 10 }}>
-            <Text style={{ fontWeight: 'bold', color: PRIMARY_COLOR }}>Institución: </Text> 
-            Centro de Estudios Superiores del Bajio.
-          </Text>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: theme.background }]}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* CABECERA (LOGO Y VERSIÓN) */}
+      <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 30 }}>
+        <View style={{
+          width: 90, 
+          height: 90, 
+          borderRadius: 25, 
+          backgroundColor: theme.primary,
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginBottom: 15,
+          elevation: 5,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+        }}>
+          <Ionicons name="cube-outline" size={50} color="white" />
         </View>
-
-        <Text style={{ color: "#666", fontSize: 14, marginTop: 30 }}>
-          Versión 1.0.0 © 2026
+        <Text style={[styles.headerTitle, { color: theme.text, marginBottom: 5 }]}>
+          SIGAT {}
+        </Text>
+        <Text style={{ color: theme.subText, fontSize: 14, fontWeight: '500' }}>
+          Versión 1.6.1
         </Text>
       </View>
-    </View>
+
+      {/* TARJETA 1: SOBRE EL PROYECTO */}
+      <View style={[styles.detailCard, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.border }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+          <Ionicons name="school" size={24} color={theme.primary} style={{ marginRight: 10 }} />
+          <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>
+            Proyecto de Titulación
+          </Text>
+        </View>
+        
+        <Text style={{ color: theme.text, fontSize: 15, lineHeight: 22, textAlign: 'justify' }}>
+          Este sistema fue desarrollado como proyecto oficial para la obtención del título profesional. 
+          Su propósito principal es optimizar el control, rastreo y gestión de activos físicos mediante 
+          el uso de tecnología de códigos QR, asegurando la integridad y disponibilidad de la información en tiempo real.
+        </Text>
+        
+        <Text style={[styles.label, { color: theme.subText, marginTop: 20 }]}>Institución:</Text>
+        <Text style={[styles.value, { color: theme.text, fontWeight: '500' }]}>
+          Centro de Estudios Superiores del Bajio Qro. (CESBA)
+        </Text>
+
+        <Text style={[styles.label, { color: theme.subText, marginTop: 10 }]}>Carrera:</Text>
+        <Text style={[styles.value, { color: theme.text, fontWeight: '500' }]}>
+          Ingeniería en Sistemas Computacionales
+        </Text>
+      </View>
+
+      {/* TARJETA 2: DATOS DEL DESARROLLADOR */}
+      <View style={[styles.detailCard, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.border }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+          <Ionicons name="code-slash" size={24} color={theme.primary} style={{ marginRight: 10 }} />
+          <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>
+            Desarrollador
+          </Text>
+        </View>
+        
+        <Text style={[styles.label, { color: theme.subText, marginTop: 5 }]}>Autor:</Text>
+        <Text style={{ color: theme.text, fontSize: 20, fontWeight: 'bold', marginTop: 2 }}>
+          Ing. Ulises González Hernández
+        </Text>
+
+        <Text style={[styles.label, { color: theme.subText, marginTop: 15 }]}>Contacto:</Text>
+        <Text style={[styles.value, { color: theme.text }]}>
+          ulises.dev.hdz@gmail.com
+        </Text>
+
+        <Text style={[styles.label, { color: theme.subText, marginTop: 15 }]}>Tecnologías Principales:</Text>
+        <Text style={[styles.value, { color: theme.text, fontSize: 14 }]}>
+          React Native • Firebase • Expo
+        </Text>
+      </View>
+
+      {/* PIE DE PÁGINA */}
+      <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
+        <Text style={{ color: theme.subText, fontSize: 12 }}>
+          © {new Date().getFullYear()} Santiago de Querétaro, México.
+        </Text>
+        <Text style={{ color: theme.subText, fontSize: 12 }}>
+          Todos los derechos reservados.
+        </Text>
+      </View>
+
+    </ScrollView>
   );
 }
 
@@ -309,6 +382,20 @@ function DetailScreen({ route, navigation }) {
   const { item: initialItem } = route.params;
   const [item, setItem] = useState(initialItem);
   
+  // --- DETECCIÓN DE MODO OSCURO ---
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+
+  // --- COLORES DINÁMICOS ---
+  const theme = {
+    background: isDarkMode ? "#121212" : "#F5F5F5",
+    cardBg: isDarkMode ? "#1E1E1E" : "#FFFFFF",
+    text: isDarkMode ? "#FFFFFF" : "#333333",
+    subText: isDarkMode ? "#AAAAAA" : "#666666",
+    inputBg: isDarkMode ? "#333333" : "#F0F0F0",
+    border: isDarkMode ? "#444444" : "#DDDDDD",
+  };
+
   // Estados para el Modal de Préstamo
   const [modalVisible, setModalVisible] = useState(false);
   const [nombreAlumno, setNombreAlumno] = useState("");
@@ -466,31 +553,31 @@ function DetailScreen({ route, navigation }) {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView style={styles.container}>
-        <Text style={styles.headerTitle}>Detalles del Equipo</Text>
-        <View style={styles.detailCard}>
-          <Text style={styles.label}>Nombre del Equipo</Text>
-          <Text style={styles.valueLarge}>{item.nombre}</Text>
-          <Text style={styles.label}>ID / Código</Text>
-          <Text style={styles.value}>{item.id}</Text>
-          <Text style={styles.label}>Categoría</Text>
-          <Text style={styles.value}>{item.categoria || "General"}</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Detalles del Equipo</Text>
+        <View style={[styles.detailCard, { backgroundColor: theme.cardBg }]}>
+          <Text style={[styles.label, { color: theme.subText }]}>Nombre del Equipo</Text>
+          <Text style={[styles.valueLarge, { color: theme.text }]}>{item.nombre}</Text>
+          <Text style={[styles.label, { color: theme.subText }]}>ID / Código</Text>
+          <Text style={[styles.value, { color: theme.text }]}>{item.id}</Text>
+          <Text style={[styles.label, { color: theme.subText }]}>Categoría</Text>
+          <Text style={[styles.value, { color: theme.text }]}>{item.categoria || "General"}</Text>
 
-          {/* --- NUEVO: MARCA Y NÚMERO DE SERIE --- */}
+          {/* --- MARCA Y NÚMERO DE SERIE --- */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 }}>
             <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={[styles.label, { marginTop: 0 }]}>Marca</Text>
-              <Text style={styles.value}>{item.marca || "No registrada"}</Text>
+              <Text style={[styles.label, { marginTop: 0, color: theme.subText }]}>Marca</Text>
+              <Text style={[styles.value, { color: theme.text }]}>{item.marca || "No registrada"}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.label, { marginTop: 0 }]}>No. de Serie</Text>
-              <Text style={styles.value}>{item.no_serie || "No registrado"}</Text>
+              <Text style={[styles.label, { marginTop: 0, color: theme.subText }]}>No. de Serie</Text>
+              <Text style={[styles.value, { color: theme.text }]}>{item.no_serie || "No registrado"}</Text>
             </View>
           </View>
           {/* ---------------------------------------- */}
 
-          <Text style={styles.label}>Estado Actual</Text>
+          <Text style={[styles.label, { color: theme.subText }]}>Estado Actual</Text>
           <Text
             style={[
               styles.value,
@@ -503,18 +590,18 @@ function DetailScreen({ route, navigation }) {
           >
             {item.estado || "DISPONIBLE"}
           </Text>
-          <Text style={styles.label}>Descripción</Text>
-          <Text style={styles.value}>
+          <Text style={[styles.label, { color: theme.subText }]}>Descripción</Text>
+          <Text style={[styles.value, { color: theme.text }]}>
             {item.descripcion || "Sin descripción"}
           </Text>
           {isPrestado && (
             <>
-              <Text style={styles.label}>Prestado a:</Text>
+              <Text style={[styles.label, { color: theme.subText }]}>Prestado a:</Text>
               <Text style={styles.valueHighlight}>
                 {item.alumno_nombre || item.poseedor_actual || "Sin datos"}
               </Text>
-              <Text style={styles.label}>Matrícula:</Text>
-              <Text style={styles.value}>{item.alumno_matricula || "-"}</Text>
+              <Text style={[styles.label, { color: theme.subText }]}>Matrícula:</Text>
+              <Text style={[styles.value, { color: theme.text }]}>{item.alumno_matricula || "-"}</Text>
             </>
           )}
 
@@ -528,7 +615,7 @@ function DetailScreen({ route, navigation }) {
                 justifyContent: "space-between",
                 marginTop: 20,
                 borderTopWidth: 1,
-                borderTopColor: "#ddd",
+                borderTopColor: theme.border,
                 paddingTop: 15,
                 gap: 15
               }}
@@ -655,26 +742,29 @@ function DetailScreen({ route, navigation }) {
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.modalOverlay}
           >
-            <View style={styles.modalView}>
-              <Text style={styles.modalTitle}>Datos del Alumno</Text>
-              <Text style={styles.modalSubtitle}>Ingresa quién recibe el equipo</Text>
-              <Text style={styles.inputLabel}>Nombre Completo:</Text>
+            <View style={[styles.modalView, { backgroundColor: theme.cardBg }]}> 
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Datos del Alumno</Text>
+              <Text style={[styles.modalSubtitle, { color: theme.subText }]}>Ingresa quién recibe el equipo</Text>
+              
+              <Text style={[styles.inputLabel, { color: theme.text }]}>Nombre Completo:</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
                 placeholder="Ej. Juan Pérez"
-                placeholderTextColor="#888"
+                placeholderTextColor={theme.subText}
                 value={nombreAlumno}
                 onChangeText={setNombreAlumno}
               />
-              <Text style={styles.inputLabel}>Matrícula:</Text>
+              
+              <Text style={[styles.inputLabel, { color: theme.text }]}>Matrícula:</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
                 placeholder="Ej. 2314209"
-                placeholderTextColor="#888"
+                placeholderTextColor={theme.subText}
                 keyboardType="numeric"
                 value={matriculaAlumno}
                 onChangeText={setMatriculaAlumno}
               />
+              
               <View style={styles.modalButtonRow}>
                 <TouchableOpacity
                   style={[styles.modalButton, { backgroundColor: "#555" }]}
@@ -687,7 +777,7 @@ function DetailScreen({ route, navigation }) {
                   onPress={handleConfirmarPrestamo}
                   disabled={loading}
                 >
-                  {loading ? <ActivityIndicator color="white" /> : <Text style={styles.textStyle}>Confirmar</Text>}
+                  <Text style={styles.textStyle}>Confirmar</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -707,24 +797,26 @@ function DetailScreen({ route, navigation }) {
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.modalOverlay}
           >
-            <View style={styles.modalView}>
-              <Text style={styles.modalTitle}>
+            <View style={[styles.modalView, { backgroundColor: theme.cardBg }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>
                 {reasonActionType === "BAJA" ? "Dar de Baja Equipo" : "Reactivar Equipo"}
               </Text>
-              <Text style={styles.modalSubtitle}>
+              <Text style={[styles.modalSubtitle, { color: theme.subText }]}>
                 {reasonActionType === "BAJA" 
                   ? "¿Por qué vas a dar de baja este equipo?" 
                   : "¿Por qué se vuelve a activar este equipo?"}
               </Text>
-              <Text style={styles.inputLabel}>Motivo u Observaciones:</Text>
+              
+              <Text style={[styles.inputLabel, { color: theme.text }]}>Motivo u Observaciones:</Text>
               <TextInput
-                style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                style={[styles.input, { height: 80, textAlignVertical: 'top', backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
                 placeholder={reasonActionType === "BAJA" ? "Ej. Pantalla rota, extraviado..." : "Ej. Se reparó, pieza cambiada..."}
-                placeholderTextColor="#888"
+                placeholderTextColor={theme.subText}
                 multiline={true}
                 value={reasonText}
                 onChangeText={setReasonText}
               />
+              
               <View style={styles.modalButtonRow}>
                 <TouchableOpacity
                   style={[styles.modalButton, { backgroundColor: "#555" }]}
@@ -758,7 +850,6 @@ function DetailScreen({ route, navigation }) {
   );
 }
 
-
 // ==========================================
 // 3. PANTALLA PRINCIPAL 
 // ==========================================
@@ -767,6 +858,20 @@ function InventoryScreen() {
   const navigation = useNavigation();
   const { userData } = useContext(AuthContext);
 
+  // --- DETECCIÓN DE MODO OSCURO ---
+  const colorScheme = useColorScheme(); 
+  const isDarkMode = colorScheme === 'dark';
+
+  // --- COLORES DINÁMICOS ---
+  const theme = {
+    background: isDarkMode ? "#121212" : "#F5F5F5",
+    cardBg: isDarkMode ? "#1E1E1E" : "#FFFFFF",
+    text: isDarkMode ? "#FFFFFF" : "#333333",
+    subText: isDarkMode ? "#AAAAAA" : "#666666",
+    border: isDarkMode ? "#333333" : "#E0E0E0",
+    searchBg: isDarkMode ? "#2C2C2C" : "#EEEEEE",
+  };
+
   const [equipos, setEquipos] = useState([]);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -774,13 +879,13 @@ function InventoryScreen() {
 
   // --- NUEVO: DICCIONARIO DE ÍCONOS Y COLORES POR CATEGORÍA ---
   const categoryConfig = {
-    "CÓMPUTO": { icon: "💻", color: "#4A90E2" }, // Azul
-    "COMPUTO": { icon: "💻", color: "#4A90E2" }, // Por si lo escriben sin acento
-    "AUDIOVISUAL": { icon: "📽️", color: "#E94A67" }, // Rosa/Rojo
-    "REDES": { icon: "🌐", color: "#50E3C2" }, // Turquesa
-    "ACCESORIOS": { icon: "🔌", color: "#F5A623" }, // Naranja
-    "MOBILIARIO": { icon: "🪑", color: "#8B572A" }, // Café
-    "GENERAL": { icon: "📦", color: "#9B9B9B" }, // Gris
+    "CÓMPUTO": { icon: "💻", color: "#4A90E2" }, 
+    "COMPUTO": { icon: "💻", color: "#4A90E2" }, 
+    "AUDIOVISUAL": { icon: "📽️", color: "#E94A67" }, 
+    "REDES": { icon: "🌐", color: "#50E3C2" }, 
+    "ACCESORIOS": { icon: "🔌", color: "#F5A623" }, 
+    "MOBILIARIO": { icon: "🪑", color: "#8B572A" }, 
+    "GENERAL": { icon: "📦", color: "#9B9B9B" }, 
   };
 
   const cargarDatos = async () => {
@@ -836,19 +941,19 @@ function InventoryScreen() {
     const isPrestado = estadoActual === "PRESTADO";
     const isFueraDeServicio = estadoActual === "FUERA DE SERVICIO";
 
-    let statusColor = SUCCESS_COLOR; 
-    if (isPrestado) { statusColor = DANGER_COLOR; } 
+    let statusColor = SUCCESS_COLOR; // Asegúrate de tener esta variable definida
+    if (isPrestado) { statusColor = DANGER_COLOR; } // Y esta también
     else if (isFueraDeServicio) { statusColor = "#616161"; }
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}
         onPress={() => navigation.navigate("Detalles", { item: item })}
       >
         <View style={[styles.cardIndicator, { backgroundColor: statusColor }]} />
         <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>{item.nombre || "Sin nombre"}</Text>
-          <Text style={styles.cardSubtitle}>ID: {item.id}</Text>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>{item.nombre || "Sin nombre"}</Text>
+          <Text style={[styles.cardSubtitle, { color: theme.subText }]}>ID: {item.id}</Text>
           <Text style={[styles.cardStatus, { color: statusColor, fontWeight: "bold" }]}>
             {estadoActual}
           </Text>
@@ -858,21 +963,19 @@ function InventoryScreen() {
     );
   };
 
-  // NUEVO DISEÑO: Tarjetas de categoría con Emojis
   const renderCategoria = ({ item }) => {
-    // Buscamos la configuración de la categoría. Si no existe, usamos una por defecto.
-    const config = categoryConfig[item.nombre] || { icon: "📁", color: PRIMARY_COLOR };
+    const config = categoryConfig[item.nombre] || { icon: "📁", color: PRIMARY_COLOR }; // Verifica PRIMARY_COLOR
 
     return (
       <TouchableOpacity
-        style={[styles.categoryCard, { borderColor: config.color }]}
+        style={[styles.categoryCard, { backgroundColor: theme.cardBg, borderColor: config.color }]}
         onPress={() => setSelectedCategory(item.nombre)}
       >
         <View style={[styles.iconContainer, { backgroundColor: config.color + "20" }]}>
           <Text style={styles.categoryIcon}>{config.icon}</Text>
         </View>
-        <Text style={styles.categoryName}>{item.nombre}</Text>
-        <Text style={styles.categoryCount}>
+        <Text style={[styles.categoryName, { color: theme.text }]}>{item.nombre}</Text>
+        <Text style={[styles.categoryCount, { color: theme.subText }]}>
           {item.cantidad} {item.cantidad === 1 ? "artículo" : "artículos"}
         </Text>
       </TouchableOpacity>
@@ -880,8 +983,8 @@ function InventoryScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={PRIMARY_COLOR} />
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.background} />
 
       <TouchableOpacity
         style={styles.bigOrangeButton}
@@ -892,23 +995,23 @@ function InventoryScreen() {
 
       <View style={styles.headerRow}>
         {isSearchActive ? (
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#888" />
+          <View style={[styles.searchContainer, { backgroundColor: theme.searchBg, borderColor: theme.border }]}>
+            <Ionicons name="search" size={20} color={theme.subText} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: theme.text }]}
               placeholder="Buscar producto..."
-              placeholderTextColor="#888"
+              placeholderTextColor={theme.subText}
               value={searchText}
               onChangeText={setSearchText}
               autoFocus
             />
             <TouchableOpacity onPress={() => { setIsSearchActive(false); setSearchText(""); }}>
-              <Ionicons name="close-circle" size={24} color="#888" />
+              <Ionicons name="close-circle" size={24} color={theme.subText} />
             </TouchableOpacity>
           </View>
         ) : (
           <>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
               {selectedCategory ? selectedCategory : "Categorías"}
             </Text>
             <TouchableOpacity onPress={() => setIsSearchActive(true)}>
@@ -925,7 +1028,7 @@ function InventoryScreen() {
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 80 }}
-          ListEmptyComponent={<Text style={styles.emptyText}>No se encontraron resultados.</Text>}
+          ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.subText }]}>No se encontraron resultados.</Text>}
         />
       ) : selectedCategory ? (
         <View style={{ flex: 1 }}>
@@ -934,7 +1037,7 @@ function InventoryScreen() {
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
-            <Text style={styles.backButtonText}>Volver a categorías</Text>
+            <Text style={[styles.backButtonText, { color: theme.text }]}>Volver a categorías</Text>
           </TouchableOpacity>
 
           <FlatList
@@ -953,7 +1056,7 @@ function InventoryScreen() {
           keyExtractor={(item) => item.nombre}
           numColumns={2} 
           contentContainerStyle={{ paddingBottom: 80 }}
-          ListEmptyComponent={<Text style={styles.emptyText}>No hay categorías registradas.</Text>}
+          ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.subText }]}>No hay categorías registradas.</Text>}
         />
       )}
 
@@ -1124,19 +1227,31 @@ function ScannerScreen({ route, navigation }) {
 }
 
 // ==========================================
-// 5. PANTALLA AGREGAR PRODUCTO (Actualizada con escáner, Marca y No. Serie)
+// 5. PANTALLA AGREGAR PRODUCTO
 // ==========================================
 function AddProductScreen({ navigation, route }) {
   const { userData } = useContext(AuthContext);
+  
+  // --- DETECCIÓN DE MODO OSCURO ---
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+
+  const theme = {
+    background: isDarkMode ? "#121212" : "#F5F5F5",
+    cardBg: isDarkMode ? "#1E1E1E" : "#FFFFFF",
+    text: isDarkMode ? "#FFFFFF" : "#333333",
+    subText: isDarkMode ? "#AAAAAA" : "#666666",
+    inputBg: isDarkMode ? "#333333" : "#F0F0F0",
+    border: isDarkMode ? "#444444" : "#DDDDDD",
+  };
+
   const [idQr, setIdQr] = useState("");
   const [nombre, setNombre] = useState("");
-  // --- NUEVOS ESTADOS ---
   const [marca, setMarca] = useState("");
   const [noSerie, setNoSerie] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // Estados para el Dropdown de Categorías
   const [open, setOpen] = useState(false);
   const [categoria, setCategoria] = useState("Cómputo");
   const [items, setItems] = useState([
@@ -1148,7 +1263,6 @@ function AddProductScreen({ navigation, route }) {
     { label: '📦 General', value: 'General' }
   ]);
 
-  // Escuchar si venimos del escáner
   useEffect(() => {
     if (route.params?.scannedId) {
       setIdQr(route.params.scannedId);
@@ -1172,12 +1286,11 @@ function AddProductScreen({ navigation, route }) {
         return;
       }
 
-      // --- AQUÍ GUARDAMOS LOS NUEVOS DATOS EN FIREBASE ---
       await setDoc(equipoRef, {
         id_qr: idQr.trim(),
         nombre: nombre,
-        marca: marca,             // Nuevo campo
-        no_serie: noSerie,        // Nuevo campo
+        marca: marca,
+        no_serie: noSerie,
         categoria: categoria || "General",
         descripcion: descripcion,
         estado: "DISPONIBLE",
@@ -1199,16 +1312,23 @@ function AddProductScreen({ navigation, route }) {
   };
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={styles.detailCard}>
-        <Text style={styles.headerTitle}>Nuevo Equipo</Text>
+    <KeyboardAwareScrollView 
+      style={{ flex: 1, backgroundColor: theme.background }}
+      contentContainerStyle={{ flexGrow: 1, padding: 15, paddingBottom: 40 }}
+      enableOnAndroid={true} 
+      extraHeight={120} 
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={[styles.detailCard, { backgroundColor: theme.cardBg }]}>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Nuevo Equipo</Text>
 
-        <Text style={styles.inputLabel}>ID del Equipo (Código QR):</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo (Código QR):</Text>
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 15 }}>
           <TextInput
-            style={[styles.input, { flex: 1, marginBottom: 0 }]}
+            style={[styles.input, { flex: 1, marginBottom: 0, backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
             placeholder="Ej. EQ-010"
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.subText}
             value={idQr}
             onChangeText={setIdQr}
             autoCapitalize="characters"
@@ -1228,38 +1348,36 @@ function AddProductScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.inputLabel}>Nombre del Artículo:</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Nombre del Artículo:</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
           placeholder="Ej. Proyector"
-          placeholderTextColor="#888"
+          placeholderTextColor={theme.subText}
           value={nombre}
           onChangeText={setNombre}
         />
 
-        {/* --- NUEVO INPUT: MARCA --- */}
-        <Text style={styles.inputLabel}>Marca:</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Marca:</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
           placeholder="Ej. Epson, Dell, HP..."
-          placeholderTextColor="#888"
+          placeholderTextColor={theme.subText}
           value={marca}
           onChangeText={setMarca}
         />
 
-        {/* --- NUEVO INPUT: NÚMERO DE SERIE --- */}
-        <Text style={styles.inputLabel}>Número de Serie:</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Número de Serie:</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
           placeholder="Ej. SN123456789"
-          placeholderTextColor="#888"
+          placeholderTextColor={theme.subText}
           value={noSerie}
           onChangeText={setNoSerie}
           autoCapitalize="characters"
         />
 
-        <Text style={styles.inputLabel}>Categoría:</Text>
-        <View style={{ marginBottom: 15, zIndex: 1000 }}>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Categoría:</Text>
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 1000 }) }}>
           <DropDownPicker
             open={open}
             value={categoria}
@@ -1267,21 +1385,21 @@ function AddProductScreen({ navigation, route }) {
             setOpen={setOpen}
             setValue={setCategoria}
             setItems={setItems}
-            theme="DARK"
+            theme={isDarkMode ? "DARK" : "LIGHT"}
             placeholder="Selecciona una categoría"
-            style={{ backgroundColor: "#1E1E1E", borderColor: "#333", borderRadius: 8 }}
-            dropDownContainerStyle={{ backgroundColor: "#1E1E1E", borderColor: "#333" }}
-            textStyle={{ color: "white", fontSize: 16 }}
+            style={{ backgroundColor: theme.inputBg, borderColor: theme.border, borderRadius: 8 }}
+            dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }}
+            textStyle={{ color: theme.text, fontSize: 16 }}
             listMode="SCROLLVIEW" 
             scrollViewProps={{ nestedScrollEnabled: true }}
           />
         </View>
 
-        <Text style={styles.inputLabel}>Descripción Breve:</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Descripción Breve:</Text>
         <TextInput
-          style={[styles.input, { height: 80, textAlignVertical: "top" }]}
+          style={[styles.input, { height: 80, textAlignVertical: "top", backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
           placeholder="Detalles, estado físico, etc."
-          placeholderTextColor="#888"
+          placeholderTextColor={theme.subText}
           value={descripcion}
           onChangeText={setDescripcion}
           multiline
@@ -1299,7 +1417,7 @@ function AddProductScreen({ navigation, route }) {
           )}
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -1309,14 +1427,25 @@ function AddProductScreen({ navigation, route }) {
 function EditProductScreen({ route, navigation }) {
   const { item } = route.params;
 
-  // Inicializamos los inputs con los datos existentes, incluyendo Marca y Serie
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+
+  const theme = {
+    background: isDarkMode ? "#121212" : "#F5F5F5",
+    cardBg: isDarkMode ? "#1E1E1E" : "#FFFFFF",
+    text: isDarkMode ? "#FFFFFF" : "#333333",
+    subText: isDarkMode ? "#AAAAAA" : "#666666",
+    inputBg: isDarkMode ? "#333333" : "#F0F0F0",
+    border: isDarkMode ? "#444444" : "#DDDDDD",
+    disabledInput: isDarkMode ? "#222222" : "#E8E8E8",
+  };
+
   const [nombre, setNombre] = useState(item.nombre || "");
-  const [marca, setMarca] = useState(item.marca || "");       // Nuevo
-  const [noSerie, setNoSerie] = useState(item.no_serie || ""); // Nuevo
+  const [marca, setMarca] = useState(item.marca || ""); 
+  const [noSerie, setNoSerie] = useState(item.no_serie || ""); 
   const [descripcion, setDescripcion] = useState(item.descripcion || "");
   const [loading, setLoading] = useState(false);
   
-  // Estados para el Dropdown de Categorías
   const [open, setOpen] = useState(false);
   const [categoria, setCategoria] = useState(item.categoria || "Cómputo");
   const [items, setItems] = useState([
@@ -1338,18 +1467,16 @@ function EditProductScreen({ route, navigation }) {
     try {
       const equipoRef = doc(db, "Equipos", item.id);
       
-      // --- AQUÍ ACTUALIZAMOS LOS DATOS EN FIREBASE ---
       await updateDoc(equipoRef, {
         nombre: nombre,
-        marca: marca,             // Nuevo campo
-        no_serie: noSerie,        // Nuevo campo
+        marca: marca, 
+        no_serie: noSerie, 
         categoria: categoria || "General",
         descripcion: descripcion,
       });
 
       Alert.alert("¡Actualizado!", "Los datos del equipo han sido guardados.");
       
-      // Pasamos los nuevos datos de vuelta a la pantalla de detalles
       navigation.navigate("Detalles", {
         item: { ...item, nombre, marca, no_serie: noSerie, categoria, descripcion },
       });
@@ -1361,48 +1488,53 @@ function EditProductScreen({ route, navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={styles.detailCard}>
-        <Text style={styles.headerTitle}>Editar Equipo</Text>
+    <KeyboardAwareScrollView 
+      style={{ flex: 1, backgroundColor: theme.background }}
+      contentContainerStyle={{ flexGrow: 1, padding: 15, paddingBottom: 40 }}
+      enableOnAndroid={true} 
+      extraHeight={120} 
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={[styles.detailCard, { backgroundColor: theme.cardBg }]}>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Editar Equipo</Text>
 
-        <Text style={styles.inputLabel}>ID del Equipo (Código QR):</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo (Código QR):</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: "#222", color: "#666" }]}
+          style={[styles.input, { backgroundColor: theme.disabledInput, color: theme.subText, borderColor: theme.border }]}
           value={item.id}
           editable={false}
         />
 
-        <Text style={styles.inputLabel}>Nombre del Artículo:</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Nombre del Artículo:</Text>
         <TextInput
-          style={styles.input}
-          placeholderTextColor="#888"
+          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
+          placeholderTextColor={theme.subText}
           value={nombre}
           onChangeText={setNombre}
         />
 
-        {/* --- NUEVO INPUT: MARCA --- */}
-        <Text style={styles.inputLabel}>Marca:</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Marca:</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
           placeholder="Ej. Epson, Dell, HP..."
-          placeholderTextColor="#888"
+          placeholderTextColor={theme.subText}
           value={marca}
           onChangeText={setMarca}
         />
 
-        {/* --- NUEVO INPUT: NÚMERO DE SERIE --- */}
-        <Text style={styles.inputLabel}>Número de Serie:</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Número de Serie:</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
           placeholder="Ej. SN123456789"
-          placeholderTextColor="#888"
+          placeholderTextColor={theme.subText}
           value={noSerie}
           onChangeText={setNoSerie}
           autoCapitalize="characters"
         />
 
-        <Text style={styles.inputLabel}>Categoría:</Text>
-        <View style={{ marginBottom: 15, zIndex: 1000 }}>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Categoría:</Text>
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 1000 }) }}>
           <DropDownPicker
             open={open}
             value={categoria}
@@ -1410,20 +1542,20 @@ function EditProductScreen({ route, navigation }) {
             setOpen={setOpen}
             setValue={setCategoria}
             setItems={setItems}
-            theme="DARK"
+            theme={isDarkMode ? "DARK" : "LIGHT"}
             placeholder="Selecciona una categoría"
-            style={{ backgroundColor: "#1E1E1E", borderColor: "#333", borderRadius: 8 }}
-            dropDownContainerStyle={{ backgroundColor: "#1E1E1E", borderColor: "#333" }}
-            textStyle={{ color: "white", fontSize: 16 }}
+            style={{ backgroundColor: theme.inputBg, borderColor: theme.border, borderRadius: 8 }}
+            dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }}
+            textStyle={{ color: theme.text, fontSize: 16 }}
             listMode="SCROLLVIEW" 
             scrollViewProps={{ nestedScrollEnabled: true }}
           />
         </View>
 
-        <Text style={styles.inputLabel}>Descripción Breve:</Text>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Descripción Breve:</Text>
         <TextInput
-          style={[styles.input, { height: 80, textAlignVertical: "top" }]}
-          placeholderTextColor="#888"
+          style={[styles.input, { height: 80, textAlignVertical: "top", backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
+          placeholderTextColor={theme.subText}
           value={descripcion}
           onChangeText={setDescripcion}
           multiline
@@ -1441,7 +1573,7 @@ function EditProductScreen({ route, navigation }) {
           )}
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -1600,12 +1732,16 @@ export default function App() {
 // 8. ESTILOS
 // ==========================================
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BACKGROUND_COLOR, padding: 15 },
+  container: { 
+    flex: 1, 
+    padding: 15 
+    // backgroundColor: se controla dinámicamente con theme
+  },
   loginContainer: {
     flex: 1,
-    backgroundColor: BACKGROUND_COLOR,
     justifyContent: "center",
     padding: 20,
+    // backgroundColor: se controla dinámicamente con theme
   },
   loginLogoCircle: {
     width: 100,
@@ -1619,23 +1755,23 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   loginTitle: {
-    color: "white",
     fontSize: 32,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 5,
+    // color: se controla dinámicamente con theme
   },
   loginSubtitle: {
-    color: "#888",
     fontSize: 16,
     textAlign: "center",
     marginBottom: 40,
+    // color: se controla dinámicamente con theme.subText
   },
   loginCard: {
-    backgroundColor: CARD_COLOR,
     padding: 20,
     borderRadius: 15,
     elevation: 5,
+    // backgroundColor: se controla dinámicamente con theme.cardBg
   },
   drawerHeader: {
     backgroundColor: PRIMARY_COLOR,
@@ -1671,61 +1807,64 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     alignSelf: "flex-start",
-    color: "#ccc",
     marginBottom: 5,
     fontSize: 14,
     fontWeight: "bold",
+    // color: se controla dinámicamente con theme.text
   },
   input: {
     width: "100%",
-    backgroundColor: "#333",
     borderRadius: 10,
     padding: 15,
     marginBottom: 15,
-    color: "white",
     borderWidth: 1,
-    borderColor: "#444",
+    // backgroundColor, color y borderColor: se controlan con theme
   },
-  sectionTitle: { color: "#888", fontSize: 14, fontWeight: "bold" },
+  sectionTitle: { 
+    fontSize: 14, 
+    fontWeight: "bold" 
+    // color: se controla dinámicamente con theme.subText o text
+  },
   card: {
-    backgroundColor: CARD_COLOR,
     borderRadius: 8,
     padding: 15,
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
+    borderWidth: 1, // Añadido para que el borde dinámico se vea
+    // backgroundColor y borderColor: se controlan con theme
   },
   cardIndicator: { width: 4, height: "100%", borderRadius: 2, marginRight: 15 },
   cardContent: { flex: 1 },
-  cardTitle: { color: "white", fontWeight: "bold", fontSize: 16 },
-  cardSubtitle: { color: "#aaa", fontSize: 12, marginTop: 2 },
-  cardStatus: { fontSize: 10, marginTop: 5, fontWeight: "bold" },
+  cardTitle: { fontWeight: "bold", fontSize: 16 }, // color dinámico
+  cardSubtitle: { fontSize: 12, marginTop: 2 }, // color dinámico
+  cardStatus: { fontSize: 10, marginTop: 5, fontWeight: "bold" }, // color depende del status
   headerTitle: {
-    color: "white",
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 20,
     textAlign: "center",
     marginTop: 10,
+    // color: se controla dinámicamente con theme
   },
   detailCard: {
-    backgroundColor: CARD_COLOR,
     borderRadius: 12,
     padding: 20,
     marginBottom: 25,
+    // backgroundColor: se controla dinámicamente con theme.cardBg
   },
   label: {
-    color: "#888",
     fontSize: 12,
     marginTop: 15,
     textTransform: "uppercase",
+    // color: se controla dinámicamente con theme.subText
   },
-  value: { color: TEXT_COLOR, fontSize: 16, marginBottom: 5 },
+  value: { fontSize: 16, marginBottom: 5 }, // color dinámico
   valueLarge: {
-    color: "white",
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 5,
+    // color: se controla dinámicamente con theme.text
   },
   valueHighlight: { color: PRIMARY_COLOR, fontSize: 18, fontWeight: "bold" },
   buttonRow: { flexDirection: "row", gap: 15 },
@@ -1742,7 +1881,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 50,
     alignSelf: "center",
-    backgroundColor: "#333",
+    backgroundColor: "#333", // Se queda oscuro porque va sobre la cámara
     paddingVertical: 10,
     paddingHorizontal: 30,
     borderRadius: 30,
@@ -1772,7 +1911,6 @@ const styles = StyleSheet.create({
   },
   modalView: {
     width: "85%",
-    backgroundColor: "#252525",
     borderRadius: 20,
     padding: 25,
     alignItems: "center",
@@ -1781,14 +1919,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+    // backgroundColor: se controla con theme.cardBg
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "white",
     marginBottom: 5,
+    // color: se controla con theme.text
   },
-  modalSubtitle: { fontSize: 14, color: "#aaa", marginBottom: 20 },
+  modalSubtitle: { fontSize: 14, marginBottom: 20 }, // color dinámico
   modalButtonRow: {
     flexDirection: "row",
     width: "100%",
@@ -1823,7 +1962,7 @@ const styles = StyleSheet.create({
   },
 
   // ==========================================
-  // --- NUEVOS ESTILOS PARA LAS CARPETAS ---
+  // --- ESTILOS PARA LAS CARPETAS (CATEGORÍAS) ---
   // ==========================================
   headerRow: {
     flexDirection: "row",
@@ -1835,22 +1974,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    backgroundColor: CARD_COLOR,
     borderRadius: 8,
     paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: "#333",
+    // backgroundColor y borderColor: dinámicos con theme
   },
   searchInput: {
     flex: 1,
-    color: TEXT_COLOR,
     paddingVertical: 10,
     paddingHorizontal: 10,
+    // color: dinámico
   },
   emptyText: {
-    color: "#888",
     textAlign: "center",
     marginTop: 50,
+    // color: dinámico
   },
   backButton: {
     flexDirection: "row",
@@ -1865,7 +2003,6 @@ const styles = StyleSheet.create({
   },
   categoryCard: {
     flex: 1,
-    backgroundColor: CARD_COLOR,
     margin: 8,
     paddingVertical: 25,
     paddingHorizontal: 10,
@@ -1874,6 +2011,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1.5,
     minHeight: 140,
+    // backgroundColor y borderColor: dinámicos
   },
   iconContainer: {
     width: 60,
@@ -1887,15 +2025,15 @@ const styles = StyleSheet.create({
     fontSize: 32,
   },
   categoryName: {
-    color: TEXT_COLOR,
     fontWeight: "bold",
     textAlign: "center",
     fontSize: 15,
+    // color: dinámico
   },
   categoryCount: {
-    color: "#aaa",
     fontSize: 12,
     marginTop: 5,
     textAlign: "center",
+    // color: dinámico
   },
 });
