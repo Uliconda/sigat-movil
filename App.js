@@ -403,20 +403,22 @@ function DetailScreen({ route, navigation }) {
   
   // Estados para el Modal de Motivos (Baja/Reactivar)
   const [reasonModalVisible, setReasonModalVisible] = useState(false);
-  const [reasonActionType, setReasonActionType] = useState(""); // "BAJA" o "REACTIVAR"
+  const [reasonActionType, setReasonActionType] = useState(""); 
   const [reasonText, setReasonText] = useState("");
   
   const [loading, setLoading] = useState(false);
 
   // Normalización de estados
   const estadoNormalizado = item.estado ? item.estado.toUpperCase() : "DESCONOCIDO";
-  const isPrestado = estadoNormalizado === "PRESTADO";
+  const isPrestado = estadoNormalizado === "PRESTADO" || estadoNormalizado === "SIN ENTREGAR";
+  const isNoResponde = estadoNormalizado === "NO RESPONDE"; // NUEVO ESTADO MOROSO
   const isFueraDeServicio = estadoNormalizado === "FUERA DE SERVICIO"; 
 
   // Determinar color del estado
   let statusColor = SUCCESS_COLOR;
-  if (isPrestado) statusColor = DANGER_COLOR;
-  if (isFueraDeServicio) statusColor = "#616161"; // Gris para fuera de servicio
+  if (isNoResponde) statusColor = "#ad1457"; // Magenta para falta
+  else if (isPrestado) statusColor = DANGER_COLOR;
+  else if (isFueraDeServicio) statusColor = "#616161"; 
 
   const refrescarDatos = async () => {
     try {
@@ -472,7 +474,6 @@ function DetailScreen({ route, navigation }) {
     }
   };
 
-  // --- PROCESAR BAJA O REACTIVACIÓN ---
   const handleConfirmReasonAction = async () => {
     if (reasonText.trim() === "") {
       return Alert.alert("Campo vacío", "Por favor ingresa un motivo para el historial.");
@@ -484,7 +485,6 @@ function DetailScreen({ route, navigation }) {
       const accionHistorial = reasonActionType === "BAJA" ? "BAJA" : "REACTIVACIÓN";
       const prefijoObs = reasonActionType === "BAJA" ? "Baja del sistema" : "Equipo reactivado tras reparación";
 
-      // 1. Actualizamos el documento
       await updateDoc(doc(db, "Equipos", item.id), {
         estado: nuevoEstado,
         usuarioActual: userData?.nombre || "Usuario Móvil",
@@ -493,7 +493,6 @@ function DetailScreen({ route, navigation }) {
         poseedor_actual: "",
       });
 
-      // 2. Guardamos en el historial
       await addDoc(collection(db, "Historial"), {
         idEquipo: item.id,
         nombreEquipo: item.nombre,
@@ -503,7 +502,6 @@ function DetailScreen({ route, navigation }) {
         observaciones: `${prefijoObs}. Motivo: ${reasonText} - Vía App Móvil 📱`,
       });
 
-      // 3. Actualizamos la pantalla
       setItem({
         ...item,
         estado: nuevoEstado,
@@ -528,7 +526,6 @@ function DetailScreen({ route, navigation }) {
     setReasonModalVisible(true);
   };
 
-  // --- ELIMINAR PRODUCTO ---
   const handleDelete = () => {
     Alert.alert(
       "Eliminar Equipo",
@@ -552,6 +549,11 @@ function DetailScreen({ route, navigation }) {
     );
   };
 
+  // Lógica de deshabilitación de botones
+  const canPrestar = !isPrestado && !isFueraDeServicio && !isNoResponde;
+  // Solo se puede devolver si está prestado, sin entregar, o no responde (para recuperarlo).
+  const canDevolver = (isPrestado || isNoResponde) && !isFueraDeServicio;
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView style={styles.container}>
@@ -564,7 +566,6 @@ function DetailScreen({ route, navigation }) {
           <Text style={[styles.label, { color: theme.subText }]}>Categoría</Text>
           <Text style={[styles.value, { color: theme.text }]}>{item.categoria || "General"}</Text>
 
-          {/* --- MARCA Y NÚMERO DE SERIE --- */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 }}>
             <View style={{ flex: 1, paddingRight: 10 }}>
               <Text style={[styles.label, { marginTop: 0, color: theme.subText }]}>Marca</Text>
@@ -575,7 +576,6 @@ function DetailScreen({ route, navigation }) {
               <Text style={[styles.value, { color: theme.text }]}>{item.no_serie || "No registrado"}</Text>
             </View>
           </View>
-          {/* ---------------------------------------- */}
 
           <Text style={[styles.label, { color: theme.subText }]}>Estado Actual</Text>
           <Text
@@ -594,9 +594,11 @@ function DetailScreen({ route, navigation }) {
           <Text style={[styles.value, { color: theme.text }]}>
             {item.descripcion || "Sin descripción"}
           </Text>
-          {isPrestado && (
+          
+          {/* Se muestra a quién está prestado incluso si "No responde" para saber a quién cobrarle */}
+          {(isPrestado || isNoResponde) && (
             <>
-              <Text style={[styles.label, { color: theme.subText }]}>Prestado a:</Text>
+              <Text style={[styles.label, { color: theme.subText }]}>Poseedor / Deudor:</Text>
               <Text style={styles.valueHighlight}>
                 {item.alumno_nombre || item.poseedor_actual || "Sin datos"}
               </Text>
@@ -605,55 +607,27 @@ function DetailScreen({ route, navigation }) {
             </>
           )}
 
-          
-          {/* Mostramos el panel de acciones si es admin O superadmin */}
           {(userData?.rol === "admin" || userData?.rol === "superadmin") && (
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                justifyContent: "space-between",
-                marginTop: 20,
-                borderTopWidth: 1,
-                borderTopColor: theme.border,
-                paddingTop: 15,
-                gap: 15
-              }}
-            >
-              {/* BOTÓN EDITAR */}
-              <TouchableOpacity
-                onPress={() => navigation.navigate("EditProduct", { item })}
-                style={{ flexDirection: "row", alignItems: "center" }}
-              >
+            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 20, borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 15, gap: 15 }}>
+              <TouchableOpacity onPress={() => navigation.navigate("EditProduct", { item })} style={{ flexDirection: "row", alignItems: "center" }}>
                 <Ionicons name="pencil" size={20} color={PRIMARY_COLOR} />
                 <Text style={{ color: PRIMARY_COLOR, marginLeft: 5, fontWeight: "bold" }}>EDITAR</Text>
               </TouchableOpacity>
 
-              {/* BOTÓN BAJA/REACTIVAR */}
               {!isFueraDeServicio ? (
-                <TouchableOpacity
-                  onPress={() => openReasonModal("BAJA")}
-                  style={{ flexDirection: "row", alignItems: "center" }}
-                >
+                <TouchableOpacity onPress={() => openReasonModal("BAJA")} style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="close-circle" size={20} color="#ff9800" />
                   <Text style={{ color: "#ff9800", marginLeft: 5, fontWeight: "bold" }}>BAJA</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  onPress={() => openReasonModal("REACTIVAR")}
-                  style={{ flexDirection: "row", alignItems: "center" }}
-                >
+                <TouchableOpacity onPress={() => openReasonModal("REACTIVAR")} style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="checkmark-circle" size={20} color={SUCCESS_COLOR} />
                   <Text style={{ color: SUCCESS_COLOR, marginLeft: 5, fontWeight: "bold" }}>REACTIVAR</Text>
                 </TouchableOpacity>
               )}
 
-              {/* BOTÓN ELIMINAR: 🔥 Visible SOLO para Superadmin 🔥 */}
               {userData?.rol === "superadmin" && (
-                <TouchableOpacity
-                  onPress={handleDelete}
-                  style={{ flexDirection: "row", alignItems: "center" }}
-                >
+                <TouchableOpacity onPress={handleDelete} style={{ flexDirection: "row", alignItems: "center" }}>
                   <Ionicons name="trash" size={20} color={DANGER_COLOR} />
                   <Text style={{ color: DANGER_COLOR, marginLeft: 5, fontWeight: "bold" }}>ELIMINAR</Text>
                 </TouchableOpacity>
@@ -667,32 +641,34 @@ function DetailScreen({ route, navigation }) {
           <TouchableOpacity
             style={[
               styles.actionButton,
-              { backgroundColor: (isPrestado || isFueraDeServicio) ? DISABLED_COLOR : SUCCESS_COLOR },
+              { backgroundColor: canPrestar ? SUCCESS_COLOR : DISABLED_COLOR },
             ]}
-            disabled={isPrestado || isFueraDeServicio}
+            disabled={!canPrestar}
             onPress={() => setModalVisible(true)}
           >
             <Text
               style={[
                 styles.buttonText,
-                { color: (isPrestado || isFueraDeServicio) ? "#AAA" : "white" },
+                { color: canPrestar ? "white" : "#AAA" },
               ]}
             >
-              {isFueraDeServicio ? "NO DISPONIBLE" : isPrestado ? "OCUPADO" : "PRESTAR"}
+              {isFueraDeServicio ? "NO DISPONIBLE" : isNoResponde ? "BLOQUEADO (FALTA)" : isPrestado ? "OCUPADO" : "PRESTAR"}
             </Text>
           </TouchableOpacity>
 
-          {/* BOTÓN DEVOLVER */}
+          {/* BOTÓN DEVOLVER / RECUPERAR */}
           <TouchableOpacity
             style={[
               styles.actionButton,
-              { backgroundColor: (!isPrestado || isFueraDeServicio) ? DISABLED_COLOR : DANGER_COLOR },
+              { backgroundColor: canDevolver ? DANGER_COLOR : DISABLED_COLOR },
             ]}
-            disabled={!isPrestado || isFueraDeServicio}
+            disabled={!canDevolver}
             onPress={() => {
               Alert.alert(
-                "Confirmación",
-                "Para devolver, escanea el QR nuevamente.",
+                isNoResponde ? "Recuperar Equipo" : "Confirmación",
+                isNoResponde 
+                  ? "Vas a recibir un equipo marcado con falta. Por favor escanea el QR nuevamente para procesar el regreso."
+                  : "Para devolver, escanea el QR nuevamente.",
                 [
                   { text: "Cancelar", style: "cancel" },
                   {
@@ -710,73 +686,39 @@ function DetailScreen({ route, navigation }) {
             <Text
               style={[
                 styles.buttonText,
-                { color: (!isPrestado || isFueraDeServicio) ? "#AAA" : "white" },
+                { color: canDevolver ? "white" : "#AAA" },
               ]}
             >
-              DEVOLVER
+              {isNoResponde ? "RECUPERAR" : "DEVOLVER"}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          onPress={() => navigation.navigate("InventoryList")}
-          style={{ alignSelf: "center", marginTop: 20 }}
-        >
-          <Text style={{ color: PRIMARY_COLOR, fontSize: 16, fontWeight: "bold" }}>
-            VOLVER AL INICIO
-          </Text>
+        <TouchableOpacity onPress={() => navigation.navigate("InventoryList")} style={{ alignSelf: "center", marginTop: 20 }}>
+          <Text style={{ color: PRIMARY_COLOR, fontSize: 16, fontWeight: "bold" }}>VOLVER AL INICIO</Text>
         </TouchableOpacity>
         <View style={{ height: 50 }} />
       </ScrollView>
 
-      {/* --- MODALES --- */}
       {/* MODAL DE PRÉSTAMO */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+      <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalOverlay}
-          >
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
             <View style={[styles.modalView, { backgroundColor: theme.cardBg }]}> 
               <Text style={[styles.modalTitle, { color: theme.text }]}>Datos del Alumno</Text>
               <Text style={[styles.modalSubtitle, { color: theme.subText }]}>Ingresa quién recibe el equipo</Text>
               
               <Text style={[styles.inputLabel, { color: theme.text }]}>Nombre Completo:</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-                placeholder="Ej. Juan Pérez"
-                placeholderTextColor={theme.subText}
-                value={nombreAlumno}
-                onChangeText={setNombreAlumno}
-              />
+              <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholder="Ej. Juan Pérez" placeholderTextColor={theme.subText} value={nombreAlumno} onChangeText={setNombreAlumno} />
               
               <Text style={[styles.inputLabel, { color: theme.text }]}>Matrícula:</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-                placeholder="Ej. 2314209"
-                placeholderTextColor={theme.subText}
-                keyboardType="numeric"
-                value={matriculaAlumno}
-                onChangeText={setMatriculaAlumno}
-              />
+              <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholder="Ej. 2314209" placeholderTextColor={theme.subText} keyboardType="numeric" value={matriculaAlumno} onChangeText={setMatriculaAlumno} />
               
               <View style={styles.modalButtonRow}>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: "#555" }]}
-                  onPress={() => setModalVisible(false)}
-                >
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: "#555" }]} onPress={() => setModalVisible(false)}>
                   <Text style={styles.textStyle}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: PRIMARY_COLOR }]}
-                  onPress={handleConfirmarPrestamo}
-                  disabled={loading}
-                >
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: PRIMARY_COLOR }]} onPress={handleConfirmarPrestamo} disabled={loading}>
                   <Text style={styles.textStyle}>Confirmar</Text>
                 </TouchableOpacity>
               </View>
@@ -786,66 +728,28 @@ function DetailScreen({ route, navigation }) {
       </Modal>
 
       {/* MODAL PARA BAJA / REACTIVACIÓN */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={reasonModalVisible}
-        onRequestClose={() => setReasonModalVisible(false)}
-      >
+      <Modal animationType="fade" transparent={true} visible={reasonModalVisible} onRequestClose={() => setReasonModalVisible(false)}>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalOverlay}
-          >
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
             <View style={[styles.modalView, { backgroundColor: theme.cardBg }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>
-                {reasonActionType === "BAJA" ? "Dar de Baja Equipo" : "Reactivar Equipo"}
-              </Text>
-              <Text style={[styles.modalSubtitle, { color: theme.subText }]}>
-                {reasonActionType === "BAJA" 
-                  ? "¿Por qué vas a dar de baja este equipo?" 
-                  : "¿Por qué se vuelve a activar este equipo?"}
-              </Text>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>{reasonActionType === "BAJA" ? "Dar de Baja Equipo" : "Reactivar Equipo"}</Text>
+              <Text style={[styles.modalSubtitle, { color: theme.subText }]}>{reasonActionType === "BAJA" ? "¿Por qué vas a dar de baja este equipo?" : "¿Por qué se vuelve a activar este equipo?"}</Text>
               
               <Text style={[styles.inputLabel, { color: theme.text }]}>Motivo u Observaciones:</Text>
-              <TextInput
-                style={[styles.input, { height: 80, textAlignVertical: 'top', backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-                placeholder={reasonActionType === "BAJA" ? "Ej. Pantalla rota, extraviado..." : "Ej. Se reparó, pieza cambiada..."}
-                placeholderTextColor={theme.subText}
-                multiline={true}
-                value={reasonText}
-                onChangeText={setReasonText}
-              />
+              <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top', backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholder={reasonActionType === "BAJA" ? "Ej. Pantalla rota, extraviado..." : "Ej. Se reparó, pieza cambiada..."} placeholderTextColor={theme.subText} multiline={true} value={reasonText} onChangeText={setReasonText} />
               
               <View style={styles.modalButtonRow}>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: "#555" }]}
-                  onPress={() => setReasonModalVisible(false)}
-                >
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: "#555" }]} onPress={() => setReasonModalVisible(false)}>
                   <Text style={styles.textStyle}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.modalButton,
-                    { backgroundColor: reasonActionType === "BAJA" ? "#ff9800" : SUCCESS_COLOR },
-                  ]}
-                  onPress={handleConfirmReasonAction}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <Text style={styles.textStyle}>
-                      {reasonActionType === "BAJA" ? "Dar de Baja" : "Reactivar"}
-                    </Text>
-                  )}
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: reasonActionType === "BAJA" ? "#ff9800" : SUCCESS_COLOR }]} onPress={handleConfirmReasonAction} disabled={loading}>
+                  {loading ? <ActivityIndicator color="white" /> : <Text style={styles.textStyle}>{reasonActionType === "BAJA" ? "Dar de Baja" : "Reactivar"}</Text>}
                 </TouchableOpacity>
               </View>
             </View>
           </KeyboardAvoidingView>
         </TouchableWithoutFeedback>
       </Modal>
-
     </View>
   );
 }
@@ -877,7 +781,6 @@ function InventoryScreen() {
   const [searchText, setSearchText] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(null);
 
-  // --- NUEVO: DICCIONARIO DE ÍCONOS Y COLORES POR CATEGORÍA ---
   const categoryConfig = {
     "CÓMPUTO": { icon: "💻", color: "#4A90E2" }, 
     "COMPUTO": { icon: "💻", color: "#4A90E2" }, 
@@ -905,7 +808,6 @@ function InventoryScreen() {
     return unsubscribe;
   }, [navigation]);
 
-  // A. Búsqueda global
   const filteredEquipos = equipos.filter((item) => {
     const query = searchText.toLowerCase();
     const nombreMatch = item.nombre ? item.nombre.toLowerCase().includes(query) : false;
@@ -913,13 +815,11 @@ function InventoryScreen() {
     return nombreMatch || idMatch;
   });
 
-  // B. Lista de la categoría seleccionada
   const categoryEquipos = equipos.filter((item) => {
     const cat = item.categoria ? item.categoria.toUpperCase() : "GENERAL";
     return cat === selectedCategory;
   });
 
-  // C. Extraer categorías únicas
   const categoriasData = equipos.reduce((acc, item) => {
     const cat = item.categoria ? item.categoria.toUpperCase() : "GENERAL";
     if (!acc[cat]) { acc[cat] = 0; }
@@ -938,11 +838,13 @@ function InventoryScreen() {
   
   const renderItem = ({ item }) => {
     const estadoActual = item.estado ? item.estado.toUpperCase() : "DISPONIBLE";
-    const isPrestado = estadoActual === "PRESTADO";
+    const isPrestado = estadoActual === "PRESTADO" || estadoActual === "SIN ENTREGAR";
+    const isNoResponde = estadoActual === "NO RESPONDE";
     const isFueraDeServicio = estadoActual === "FUERA DE SERVICIO";
 
-    let statusColor = SUCCESS_COLOR; // Asegúrate de tener esta variable definida
-    if (isPrestado) { statusColor = DANGER_COLOR; } // Y esta también
+    let statusColor = SUCCESS_COLOR; 
+    if (isNoResponde) { statusColor = "#ad1457"; } 
+    else if (isPrestado) { statusColor = DANGER_COLOR; } 
     else if (isFueraDeServicio) { statusColor = "#616161"; }
 
     return (
@@ -964,7 +866,7 @@ function InventoryScreen() {
   };
 
   const renderCategoria = ({ item }) => {
-    const config = categoryConfig[item.nombre] || { icon: "📁", color: PRIMARY_COLOR }; // Verifica PRIMARY_COLOR
+    const config = categoryConfig[item.nombre] || { icon: "📁", color: PRIMARY_COLOR };
 
     return (
       <TouchableOpacity
