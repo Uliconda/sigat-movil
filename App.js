@@ -65,6 +65,31 @@ const DISABLED_COLOR = "#555555";
 // ==========================================
 const AuthContext = createContext({ user: null, userData: null });
 
+
+// ==========================================
+// 0. DEFINICIÓN DE TEMAS (Pon esto justo arriba de tu LoginScreen)
+// ==========================================
+const Theme = {
+  light: {
+    background: '#F5F5F5', // Gris muy claro para el fondo
+    cardBg: '#FFFFFF',     // Blanco para la tarjeta
+    text: '#333333',       // Texto oscuro
+    subText: '#666666',    // Texto secundario gris
+    inputBg: '#F9F9F9',    // Fondo de los inputs casi blanco
+    inputBorder: '#E0E0E0',// Borde gris claro
+    placeholder: '#888888',
+  },
+  dark: {
+    background: '#121212', // Fondo oscuro (mejor que negro puro)
+    cardBg: '#1E1E1E',     // Tarjeta ligeramente más clara para resaltar
+    text: '#FFFFFF',       // Texto blanco
+    subText: '#AAAAAA',    // Texto secundario gris claro
+    inputBg: '#2C2C2C',    // Fondo de inputs gris oscuro
+    inputBorder: '#444444',// Borde gris medio
+    placeholder: '#888888',
+  }
+};
+
 // ==========================================
 // 0. PANTALLA DE LOGIN
 // ==========================================
@@ -72,6 +97,12 @@ function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // --- MAGIA DEL MODO OSCURO/CLARO AQUÍ ---
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+  const theme = isDarkMode ? Theme.dark : Theme.light;
+  // ----------------------------------------
 
   const handleLogin = async () => {
     if (email === "" || password === "") {
@@ -93,11 +124,17 @@ function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.loginContainer}>
-          <StatusBar barStyle="light-content" backgroundColor={BACKGROUND_COLOR} />
+        {/* Usamos un arreglo para combinar tus estilos fijos con los dinámicos */}
+        <View style={[styles.loginContainer, { backgroundColor: theme.background }]}>
+          
+          {/* El StatusBar también cambia según el tema */}
+          <StatusBar 
+            barStyle={isDarkMode ? "light-content" : "dark-content"} 
+            backgroundColor={theme.background} 
+          />
           
           {/* ========================================== */}
-          {/* AQUÍ ESTÁ TU NUEVO LOGO DEL BÚHO */}
+          {/* LOGO DEL BÚHO */}
           {/* ========================================== */}
           <View style={{ alignItems: 'center', marginBottom: 20 }}>
             <Image 
@@ -106,29 +143,39 @@ function LoginScreen() {
             />
           </View>
           
-          <Text style={styles.loginTitle}>SIGAT</Text>
-          <Text style={styles.loginSubtitle}>Sistema de Inventario</Text>
+          <Text style={[styles.loginTitle, { color: theme.text }]}>SIGAT</Text>
+          <Text style={[styles.loginSubtitle, { color: theme.subText }]}>Sistema de Inventario</Text>
 
-          <View style={styles.loginCard}>
-            <Text style={styles.inputLabel}>Correo Electrónico</Text>
+          <View style={[styles.loginCard, { backgroundColor: theme.cardBg }]}>
+            <Text style={[styles.inputLabel, { color: theme.text }]}>Correo Electrónico</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { 
+                backgroundColor: theme.inputBg, 
+                borderColor: theme.inputBorder, 
+                color: theme.text 
+              }]}
               placeholder="admin@ejemplo.com"
-              placeholderTextColor="#888"
+              placeholderTextColor={theme.placeholder}
               keyboardType="email-address"
               autoCapitalize="none"
               value={email}
               onChangeText={setEmail}
             />
-            <Text style={styles.inputLabel}>Contraseña</Text>
+            
+            <Text style={[styles.inputLabel, { color: theme.text }]}>Contraseña</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { 
+                backgroundColor: theme.inputBg, 
+                borderColor: theme.inputBorder, 
+                color: theme.text 
+              }]}
               placeholder="********"
-              placeholderTextColor="#888"
+              placeholderTextColor={theme.placeholder}
               secureTextEntry
               value={password}
               onChangeText={setPassword}
             />
+            
             <TouchableOpacity
               style={styles.bigOrangeButton}
               onPress={handleLogin}
@@ -1128,6 +1175,7 @@ function ScannerScreen({ route, navigation }) {
   );
 }
 
+
 // ==========================================
 // 5. PANTALLA AGREGAR PRODUCTO
 // ==========================================
@@ -1145,9 +1193,10 @@ function AddProductScreen({ navigation, route }) {
     subText: isDarkMode ? "#AAAAAA" : "#666666",
     inputBg: isDarkMode ? "#333333" : "#F0F0F0",
     border: isDarkMode ? "#444444" : "#DDDDDD",
+    disabledInput: isDarkMode ? "#222222" : "#E8E8E8", // Agregamos este color para el ID bloqueado
   };
 
-  const [idQr, setIdQr] = useState("");
+  const [idQr, setIdQr] = useState("Cargando..."); // Empieza diciendo cargando
   const [nombre, setNombre] = useState("");
   const [marca, setMarca] = useState("");
   const [noSerie, setNoSerie] = useState("");
@@ -1165,16 +1214,42 @@ function AddProductScreen({ navigation, route }) {
     { label: '📦 General', value: 'General' }
   ]);
 
-  useEffect(() => {
-    if (route.params?.scannedId) {
-      setIdQr(route.params.scannedId);
-      navigation.setParams({ scannedId: undefined });
+  // --- NUEVA LÓGICA: GENERAR ID AUTOMÁTICO ---
+  const generarSiguienteId = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "Equipos"));
+      let maxNum = 0;
+
+      querySnapshot.forEach((doc) => {
+        const currentId = doc.id; 
+        if (currentId.startsWith("EQ-")) {
+          const numStr = currentId.replace("EQ-", "");
+          const num = parseInt(numStr, 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      });
+
+      const siguienteNum = maxNum + 1;
+      const nuevoId = `EQ-${siguienteNum.toString().padStart(3, "0")}`;
+      setIdQr(nuevoId);
+
+    } catch (error) {
+      console.error("Error al generar ID:", error);
+      setIdQr("EQ-001"); // Fallback de seguridad
     }
-  }, [route.params?.scannedId]);
+  };
+
+  // Se ejecuta en cuanto abres la pantalla de Agregar
+  useEffect(() => {
+    generarSiguienteId();
+  }, []);
+  // -------------------------------------------
 
   const handleSaveProduct = async () => {
-    if (!idQr.trim() || !nombre.trim()) {
-      Alert.alert("Error", "El ID del equipo y el Nombre son obligatorios.");
+    if (!idQr.trim() || idQr === "Cargando..." || !nombre.trim()) {
+      Alert.alert("Error", "Espera a que se genere el ID y llena el Nombre.");
       return;
     }
     setLoading(true);
@@ -1225,30 +1300,13 @@ function AddProductScreen({ navigation, route }) {
       <View style={[styles.detailCard, { backgroundColor: theme.cardBg }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Nuevo Equipo</Text>
 
-        <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo (Código QR):</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 15 }}>
-          <TextInput
-            style={[styles.input, { flex: 1, marginBottom: 0, backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-            placeholder="Ej. EQ-010"
-            placeholderTextColor={theme.subText}
-            value={idQr}
-            onChangeText={setIdQr}
-            autoCapitalize="characters"
-          />
-          <TouchableOpacity
-            style={{
-              backgroundColor: PRIMARY_COLOR,
-              padding: 15,
-              borderRadius: 10,
-              marginLeft: 10,
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-            onPress={() => navigation.navigate("Scanner", { mode: "add" })}
-          >
-            <Ionicons name="qr-code-outline" size={24} color="white" />
-          </TouchableOpacity>
-        </View>
+        <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo (Autogenerado):</Text>
+        {/* Aquí quitamos el botón de escanear y bloqueamos el campo */}
+        <TextInput
+          style={[styles.input, { backgroundColor: theme.disabledInput, color: theme.subText, borderColor: theme.border }]}
+          value={idQr}
+          editable={false}
+        />
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Nombre del Artículo:</Text>
         <TextInput
