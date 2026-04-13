@@ -1720,13 +1720,23 @@ export default function App() {
             <Drawer.Screen 
               name="About" 
               component={AboutScreen} 
-              options={{ 
+              // MEJORA APLICADA: options ahora es una función que inyecta la navegación para forzar el menú
+              options={({ navigation }) => ({ 
                 headerShown: true, // Encendemos la barra superior solo para esta ventana
                 title: 'Acerca de', // Título que aparecerá en la parte superior
                 headerStyle: { backgroundColor: CARD_COLOR || "#1E1E1E" }, // Color de fondo oscuro para la barra
                 headerTintColor: PRIMARY_COLOR || "#FF9800", // Botón de retroceso y texto en naranja
-                headerTitleStyle: { fontWeight: "bold" }, // MEJORA: Para mantener consistencia con el MainStack
-              }} 
+                headerTitleStyle: { fontWeight: "bold" }, // Para mantener consistencia con el MainStack
+                // --- AQUÍ FORZAMOS EL BOTÓN DE HAMBURGUESA ---
+                headerLeft: () => (
+                  <TouchableOpacity
+                    onPress={() => navigation.openDrawer()}
+                    style={{ marginLeft: 10, marginRight: 15 }}
+                  >
+                    <Ionicons name="menu" size={30} color={PRIMARY_COLOR || "#FF9800"} />
+                  </TouchableOpacity>
+                ),
+              })} 
             />
           </Drawer.Navigator>
         ) : (
