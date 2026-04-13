@@ -120,14 +120,20 @@ function LoginScreen() {
 
   return (
     <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
+      style={{ flex: 1, backgroundColor: theme.background }} 
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        {/* Usamos un arreglo para combinar tus estilos fijos con los dinámicos */}
+      {/* El ScrollView reemplaza al TouchableWithoutFeedback. 
+        flexGrow: 1 asegura que ocupe toda la pantalla, y 
+        keyboardShouldPersistTaps cierra el teclado al tocar afuera.
+      */}
+      <ScrollView 
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.loginContainer, { backgroundColor: theme.background }]}>
           
-          {/* El StatusBar también cambia según el tema */}
           <StatusBar 
             barStyle={isDarkMode ? "light-content" : "dark-content"} 
             backgroundColor={theme.background} 
@@ -189,18 +195,19 @@ function LoginScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </TouchableWithoutFeedback>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 // ==========================================
 // 1. MENÚ LATERAL (DRAWER)
 // ==========================================
+
 function CustomDrawerContent(props) {
   const { userData } = useContext(AuthContext); // Extraemos datos del contexto
 
   // --- DETECCIÓN DE MODO OSCURO ---
-  const colorScheme = useColorScheme(); // Asegúrate de tener esto importado de 'react-native'
+  const colorScheme = useColorScheme(); 
   const isDarkMode = colorScheme === 'dark';
 
   // --- COLORES DINÁMICOS ---
@@ -307,6 +314,7 @@ function CustomDrawerContent(props) {
     </DrawerContentScrollView>
   );
 }
+
 // ==========================================
 // PANTALLA ACERCA DE (Profesional / Titulación)
 // ==========================================
@@ -321,103 +329,106 @@ function AboutScreen() {
     text: isDarkMode ? "#FFFFFF" : "#333333",
     subText: isDarkMode ? "#AAAAAA" : "#666666",
     border: isDarkMode ? "#444444" : "#DDDDDD",
-    primary: "#E65100", // PRIMARY_COLOR (Ajusta si tienes otra variable global)
+    primary: PRIMARY_COLOR || "#E65100", // Aseguramos que tome el color global
   };
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={{ paddingBottom: 40 }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* CABECERA (LOGO Y VERSIÓN) */}
-      <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 30 }}>
-        <View style={{
-          width: 90, 
-          height: 90, 
-          borderRadius: 25, 
-          backgroundColor: theme.primary,
-          justifyContent: 'center',
-          alignItems: 'center',
-          marginBottom: 15,
-          elevation: 5,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.3,
-          shadowRadius: 4,
-        }}>
-          <Ionicons name="cube-outline" size={50} color="white" />
-        </View>
-        <Text style={[styles.headerTitle, { color: theme.text, marginBottom: 5 }]}>
-          SIGAT {}
-        </Text>
-        <Text style={{ color: theme.subText, fontSize: 14, fontWeight: '500' }}>
-          Versión 1.6.1
-        </Text>
-      </View>
-
-      {/* TARJETA 1: SOBRE EL PROYECTO */}
-      <View style={[styles.detailCard, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.border }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
-          <Ionicons name="school" size={24} color={theme.primary} style={{ marginRight: 10 }} />
-          <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>
-            Proyecto de Titulación
+    // MEJORA: Envolver el ScrollView en un View con flex: 1 garantiza que ocupe todo el espacio disponible
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <ScrollView 
+        style={styles.container} // Asumimos que tienes un padding base en styles.container
+        contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 15 }} // Agregado un paddingHorizontal por si no está en styles.container
+        showsVerticalScrollIndicator={false}
+      >
+        {/* CABECERA (LOGO Y VERSIÓN) */}
+        <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 30 }}>
+          <View style={{
+            width: 90, 
+            height: 90, 
+            borderRadius: 25, 
+            backgroundColor: theme.primary,
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: 15,
+            elevation: 5,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4,
+          }}>
+            <Ionicons name="cube-outline" size={50} color="white" />
+          </View>
+          <Text style={[styles.headerTitle, { color: theme.text, marginBottom: 5 }]}>
+            SIGAT
+          </Text>
+          <Text style={{ color: theme.subText, fontSize: 14, fontWeight: '500' }}>
+            Versión 1.6.1
           </Text>
         </View>
-        
-        <Text style={{ color: theme.text, fontSize: 15, lineHeight: 22, textAlign: 'justify' }}>
-          Este sistema fue desarrollado como proyecto oficial para la obtención del título profesional. 
-          Su propósito principal es optimizar el control, rastreo y gestión de activos físicos mediante 
-          el uso de tecnología de códigos QR, asegurando la integridad y disponibilidad de la información en tiempo real.
-        </Text>
-        
-        <Text style={[styles.label, { color: theme.subText, marginTop: 20 }]}>Institución:</Text>
-        <Text style={[styles.value, { color: theme.text, fontWeight: '500' }]}>
-          Centro de Estudios Superiores del Bajio Qro. (CESBA)
-        </Text>
 
-        <Text style={[styles.label, { color: theme.subText, marginTop: 10 }]}>Carrera:</Text>
-        <Text style={[styles.value, { color: theme.text, fontWeight: '500' }]}>
-          Ingeniería en Sistemas Computacionales
-        </Text>
-      </View>
+        {/* TARJETA 1: SOBRE EL PROYECTO */}
+        <View style={[styles.detailCard, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.border, padding: 15, borderRadius: 10, marginBottom: 15 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+            <Ionicons name="school" size={24} color={theme.primary} style={{ marginRight: 10 }} />
+            <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>
+              Proyecto de Titulación
+            </Text>
+          </View>
+          
+          <Text style={{ color: theme.text, fontSize: 15, lineHeight: 22, textAlign: 'justify' }}>
+            Este sistema fue desarrollado como proyecto oficial para la obtención del título profesional. 
+            Su propósito principal es optimizar el control, rastreo y gestión de activos físicos mediante 
+            el uso de tecnología de códigos QR, asegurando la integridad y disponibilidad de la información en tiempo real.
+          </Text>
+          
+          <Text style={[styles.label, { color: theme.subText, marginTop: 20, fontWeight: 'bold' }]}>Institución:</Text>
+          <Text style={[styles.value, { color: theme.text, fontWeight: '500', marginBottom: 10 }]}>
+            Centro de Estudios Superiores del Bajio Qro. (CESBA)
+          </Text>
 
-      {/* TARJETA 2: DATOS DEL DESARROLLADOR */}
-      <View style={[styles.detailCard, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.border }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
-          <Ionicons name="code-slash" size={24} color={theme.primary} style={{ marginRight: 10 }} />
-          <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>
-            Desarrollador
+          <Text style={[styles.label, { color: theme.subText, fontWeight: 'bold' }]}>Carrera:</Text>
+          <Text style={[styles.value, { color: theme.text, fontWeight: '500' }]}>
+            Ingeniería en Sistemas Computacionales
           </Text>
         </View>
-        
-        <Text style={[styles.label, { color: theme.subText, marginTop: 5 }]}>Autor:</Text>
-        <Text style={{ color: theme.text, fontSize: 20, fontWeight: 'bold', marginTop: 2 }}>
-          Ing. Ulises González Hernández
-        </Text>
 
-        <Text style={[styles.label, { color: theme.subText, marginTop: 15 }]}>Contacto:</Text>
-        <Text style={[styles.value, { color: theme.text }]}>
-          ulises.dev.hdz@gmail.com
-        </Text>
+        {/* TARJETA 2: DATOS DEL DESARROLLADOR */}
+        <View style={[styles.detailCard, { backgroundColor: theme.cardBg, borderWidth: 1, borderColor: theme.border, padding: 15, borderRadius: 10, marginBottom: 15 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+            <Ionicons name="code-slash" size={24} color={theme.primary} style={{ marginRight: 10 }} />
+            <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>
+              Desarrollador
+            </Text>
+          </View>
+          
+          <Text style={[styles.label, { color: theme.subText, marginTop: 5, fontWeight: 'bold' }]}>Autor:</Text>
+          <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold', marginTop: 2, marginBottom: 10 }}>
+            Ing. Ulises González Hernández
+          </Text>
 
-        <Text style={[styles.label, { color: theme.subText, marginTop: 15 }]}>Tecnologías Principales:</Text>
-        <Text style={[styles.value, { color: theme.text, fontSize: 14 }]}>
-          React Native • Firebase • Expo
-        </Text>
-      </View>
+          <Text style={[styles.label, { color: theme.subText, fontWeight: 'bold' }]}>Contacto:</Text>
+          <Text style={[styles.value, { color: theme.text, marginBottom: 10 }]}>
+            ulises.dev.hdz@gmail.com
+          </Text>
 
-      {/* PIE DE PÁGINA */}
-      <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
-        <Text style={{ color: theme.subText, fontSize: 12 }}>
-          © {new Date().getFullYear()} Santiago de Querétaro, México.
-        </Text>
-        <Text style={{ color: theme.subText, fontSize: 12 }}>
-          Todos los derechos reservados.
-        </Text>
-      </View>
+          <Text style={[styles.label, { color: theme.subText, fontWeight: 'bold' }]}>Tecnologías Principales:</Text>
+          <Text style={[styles.value, { color: theme.text, fontSize: 14 }]}>
+            React Native • Firebase • Expo
+          </Text>
+        </View>
 
-    </ScrollView>
+        {/* PIE DE PÁGINA */}
+        <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
+          <Text style={{ color: theme.subText, fontSize: 12 }}>
+            © {new Date().getFullYear()} Santiago de Querétaro, México.
+          </Text>
+          <Text style={{ color: theme.subText, fontSize: 12 }}>
+            Todos los derechos reservados.
+          </Text>
+        </View>
+
+      </ScrollView>
+    </View>
   );
 }
 
@@ -749,8 +760,12 @@ function DetailScreen({ route, navigation }) {
 
       {/* MODAL DE PRÉSTAMO */}
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <ScrollView 
+            contentContainerStyle={[{ flexGrow: 1 }, styles.modalOverlay]} 
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={[styles.modalView, { backgroundColor: theme.cardBg }]}> 
               <Text style={[styles.modalTitle, { color: theme.text }]}>Datos del Alumno</Text>
               <Text style={[styles.modalSubtitle, { color: theme.subText }]}>Ingresa quién recibe el equipo</Text>
@@ -770,14 +785,18 @@ function DetailScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* MODAL PARA BAJA / REACTIVACIÓN */}
       <Modal animationType="fade" transparent={true} visible={reasonModalVisible} onRequestClose={() => setReasonModalVisible(false)}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <ScrollView 
+            contentContainerStyle={[{ flexGrow: 1 }, styles.modalOverlay]} 
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <View style={[styles.modalView, { backgroundColor: theme.cardBg }]}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>{reasonActionType === "BAJA" ? "Dar de Baja Equipo" : "Reactivar Equipo"}</Text>
               <Text style={[styles.modalSubtitle, { color: theme.subText }]}>{reasonActionType === "BAJA" ? "¿Por qué vas a dar de baja este equipo?" : "¿Por qué se vuelve a activar este equipo?"}</Text>
@@ -794,8 +813,8 @@ function DetailScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -932,7 +951,10 @@ function InventoryScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <KeyboardAvoidingView 
+      style={[styles.container, { flex: 1, backgroundColor: theme.background }]} 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.background} />
 
       <TouchableOpacity
@@ -977,6 +999,7 @@ function InventoryScreen() {
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 80 }}
+          keyboardShouldPersistTaps="handled" 
           ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.subText }]}>No se encontraron resultados.</Text>}
         />
       ) : selectedCategory ? (
@@ -995,6 +1018,7 @@ function InventoryScreen() {
             renderItem={renderItem}
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ paddingBottom: 80 }}
+            keyboardShouldPersistTaps="handled"
           />
         </View>
       ) : (
@@ -1005,6 +1029,7 @@ function InventoryScreen() {
           keyExtractor={(item) => item.nombre}
           numColumns={2} 
           contentContainerStyle={{ paddingBottom: 80 }}
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.subText }]}>No hay categorías registradas.</Text>}
         />
       )}
@@ -1017,7 +1042,7 @@ function InventoryScreen() {
           <Ionicons name="add" size={30} color="white" />
         </TouchableOpacity>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1029,20 +1054,23 @@ function ScannerScreen({ route, navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   
-  // --- NUEVO: Hook para saber si la pantalla está activa ---
+  // --- Hook para saber si la pantalla está activa (Fix de Cámara Fantasma) ---
   const isFocused = useIsFocused(); 
 
   const { returnMode, expectedId, mode } = route.params || {};
   const isProcessing = useRef(false);
+  
   // Cargamos el sonido de forma moderna y optimizada
   const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
 
+  // Si aún no carga el estado de los permisos, mostramos pantalla vacía
   if (!permission) return <View style={styles.container} />;
   
+  // Si el permiso fue denegado o no se ha pedido
   if (!permission.granted) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <Text style={{ color: "white", marginBottom: 20 }}>Necesitamos usar tu cámara</Text>
+        <Text style={{ color: "white", marginBottom: 20 }}>Necesitamos usar tu cámara para escanear los QR</Text>
         <TouchableOpacity onPress={requestPermission} style={styles.bigOrangeButton}>
           <Text style={styles.bigButtonText}>DAR PERMISO</Text>
         </TouchableOpacity>
@@ -1051,6 +1079,7 @@ function ScannerScreen({ route, navigation }) {
   }
 
   const handleBarCodeScanned = async ({ type, data }) => {
+    // Candado: Si ya estamos procesando un código, ignoramos los demás
     if (isProcessing.current) return; 
 
     // Cerramos el candado e indicamos que ya se escaneó
@@ -1061,18 +1090,18 @@ function ScannerScreen({ route, navigation }) {
     Vibration.vibrate(100); 
     player.play(); 
 
+    // --- MODO AGREGAR PRODUCTO ---
     if (mode === "add") {
       navigation.navigate("AddProduct", { scannedId: data });
       isProcessing.current = false; 
       return;
     }
 
-    // --- MODO DEVOLVER ---
+    // --- MODO DEVOLVER (Validando que sea el ID correcto) ---
     if (returnMode) {
       if (data === expectedId) {
         try {
           const equipoRef = doc(db, "Equipos", expectedId);
-          
           const docSnap = await getDoc(equipoRef);
           const nombreEquipo = docSnap.exists() ? docSnap.data().nombre : "Desconocido";
 
@@ -1093,7 +1122,7 @@ function ScannerScreen({ route, navigation }) {
             observaciones: "Devuelto escaneando QR - Vía App Móvil 📱"
           });
 
-          Alert.alert("✅ Devolución", "Equipo disponible y registrado en el historial.", [
+          Alert.alert("✅ Devolución Exitosa", "El equipo está disponible y registrado en el historial.", [
             {
               text: "Terminar",
               onPress: () => {
@@ -1103,13 +1132,13 @@ function ScannerScreen({ route, navigation }) {
             },
           ]);
         } catch (error) {
-          Alert.alert("Error", "No se pudo actualizar.");
+          Alert.alert("Error", "No se pudo actualizar la base de datos.");
           setScanned(false);
           isProcessing.current = false;
         }
       } else {
         Vibration.vibrate(); 
-        Alert.alert("⛔ Error", `El código no coincide.`, [
+        Alert.alert("⛔ Error", `El código escaneado no coincide con el equipo que intentas devolver.`, [
           { 
             text: "Reintentar", 
             onPress: () => {
@@ -1120,7 +1149,7 @@ function ScannerScreen({ route, navigation }) {
         ]);
       }
     }
-    // --- MODO BUSCAR (Normal) ---
+    // --- MODO BUSCAR NORMAL ---
     else {
       const docSnap = await getDoc(doc(db, "Equipos", data));
       if (docSnap.exists()) {
@@ -1132,7 +1161,7 @@ function ScannerScreen({ route, navigation }) {
       } else {
         Alert.alert(
           "⚠️ No encontrado",
-          `No existe un equipo con el ID: ${data}`,
+          `No existe un equipo en el inventario con el ID: ${data}`,
           [{ 
             text: "OK", 
             onPress: () => {
@@ -1147,7 +1176,7 @@ function ScannerScreen({ route, navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: "black" }}>
-      {/* --- NUEVO: CONDICIÓN isFocused --- */}
+      {/* --- CONDICIÓN isFocused para apagar cámara si no estamos en la pantalla --- */}
       {isFocused && (
         <CameraView
           style={StyleSheet.absoluteFillObject}
@@ -1161,15 +1190,15 @@ function ScannerScreen({ route, navigation }) {
           {mode === "add"
             ? "Escanea el nuevo QR"
             : returnMode
-              ? `🔐 ESCANEA:\n${expectedId}`
-              : "Escanea QR"}
+              ? `🔐 ESCANEA PARA DEVOLVER:\n${expectedId}`
+              : "Escanea un QR para buscar"}
         </Text>
       </View>
       <TouchableOpacity
         style={styles.closeButton}
         onPress={() => navigation.goBack()}
       >
-        <Text style={{ color: "white" }}>Cancelar</Text>
+        <Text style={{ color: "white", fontWeight: "bold" }}>Cancelar</Text>
       </TouchableOpacity>
     </View>
   );
@@ -1193,10 +1222,10 @@ function AddProductScreen({ navigation, route }) {
     subText: isDarkMode ? "#AAAAAA" : "#666666",
     inputBg: isDarkMode ? "#333333" : "#F0F0F0",
     border: isDarkMode ? "#444444" : "#DDDDDD",
-    disabledInput: isDarkMode ? "#222222" : "#E8E8E8", // Agregamos este color para el ID bloqueado
+    disabledInput: isDarkMode ? "#222222" : "#E8E8E8", 
   };
 
-  const [idQr, setIdQr] = useState("Cargando..."); // Empieza diciendo cargando
+  const [idQr, setIdQr] = useState("Cargando..."); 
   const [nombre, setNombre] = useState("");
   const [marca, setMarca] = useState("");
   const [noSerie, setNoSerie] = useState("");
@@ -1214,7 +1243,7 @@ function AddProductScreen({ navigation, route }) {
     { label: '📦 General', value: 'General' }
   ]);
 
-  // --- NUEVA LÓGICA: GENERAR ID AUTOMÁTICO ---
+  // --- LÓGICA: GENERAR ID AUTOMÁTICO ---
   const generarSiguienteId = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "Equipos"));
@@ -1241,7 +1270,6 @@ function AddProductScreen({ navigation, route }) {
     }
   };
 
-  // Se ejecuta en cuanto abres la pantalla de Agregar
   useEffect(() => {
     generarSiguienteId();
   }, []);
@@ -1301,7 +1329,6 @@ function AddProductScreen({ navigation, route }) {
         <Text style={[styles.headerTitle, { color: theme.text }]}>Nuevo Equipo</Text>
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo (Autogenerado):</Text>
-        {/* Aquí quitamos el botón de escanear y bloqueamos el campo */}
         <TextInput
           style={[styles.input, { backgroundColor: theme.disabledInput, color: theme.subText, borderColor: theme.border }]}
           value={idQr}
@@ -1350,8 +1377,9 @@ function AddProductScreen({ navigation, route }) {
             style={{ backgroundColor: theme.inputBg, borderColor: theme.border, borderRadius: 8 }}
             dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }}
             textStyle={{ color: theme.text, fontSize: 16 }}
-            listMode="SCROLLVIEW" 
-            scrollViewProps={{ nestedScrollEnabled: true }}
+            listMode="MODAL" // <-- MEJORA: Modal es mucho más seguro en formularios scrolleables
+            modalProps={{ animationType: "slide" }} // Le da una animación suave al abrir
+            modalTitle="Selecciona una categoría"
           />
         </View>
 
@@ -1385,7 +1413,8 @@ function AddProductScreen({ navigation, route }) {
 // 5.1. PANTALLA EDITAR PRODUCTO (SOLO ADMIN)
 // ==========================================
 function EditProductScreen({ route, navigation }) {
-  const { item } = route.params;
+  // Extraemos el item con un fallback seguro (un objeto vacío) para que los hooks no se rompan
+  const { item = {} } = route.params || {};
 
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === 'dark';
@@ -1400,6 +1429,7 @@ function EditProductScreen({ route, navigation }) {
     disabledInput: isDarkMode ? "#222222" : "#E8E8E8",
   };
 
+  // 1. ¡LOS HOOKS VAN PRIMERO! (Regla de oro de React)
   const [nombre, setNombre] = useState(item.nombre || "");
   const [marca, setMarca] = useState(item.marca || ""); 
   const [noSerie, setNoSerie] = useState(item.no_serie || ""); 
@@ -1416,6 +1446,19 @@ function EditProductScreen({ route, navigation }) {
     { label: '🪑 Mobiliario (Bases de Webcam)', value: 'Mobiliario' },
     { label: '📦 General', value: 'General' }
   ]);
+
+  // 2. AHORA SÍ, SI NO HAY ITEM, RETORNAMOS EL MENSAJE DE ERROR
+  // Lo comprobamos verificando si no tiene ID
+  if (!item.id) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
+        <Text style={{ color: theme.text, fontSize: 16, marginBottom: 20 }}>Error: No se encontró el producto.</Text>
+        <TouchableOpacity style={styles.bigOrangeButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.bigButtonText}>VOLVER</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const handleUpdateProduct = async () => {
     if (!nombre.trim()) {
@@ -1507,8 +1550,9 @@ function EditProductScreen({ route, navigation }) {
             style={{ backgroundColor: theme.inputBg, borderColor: theme.border, borderRadius: 8 }}
             dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }}
             textStyle={{ color: theme.text, fontSize: 16 }}
-            listMode="SCROLLVIEW" 
-            scrollViewProps={{ nestedScrollEnabled: true }}
+            listMode="MODAL" 
+            modalProps={{ animationType: "slide" }}
+            modalTitle="Selecciona una categoría"
           />
         </View>
 
@@ -1546,27 +1590,31 @@ const Stack = createNativeStackNavigator();
 function MainStack() {
   return (
     <Stack.Navigator
-      // Al pasar { navigation } aquí, el botón funcionará en cualquier pantalla
-      screenOptions={({ navigation }) => ({
-        headerStyle: { backgroundColor: PRIMARY_COLOR },
+      // 1. Aquí dejamos SOLO los estilos visuales que comparten todas las pantallas
+      screenOptions={{
+        headerStyle: { backgroundColor: PRIMARY_COLOR }, // Ojo: asegúrate de que PRIMARY_COLOR esté importado/definido
         headerTintColor: "#fff",
         headerTitleStyle: { fontWeight: "bold" },
-        // --- ESTO PONE EL MENÚ HAMBURGUESA EN TODAS LAS PANTALLAS ---
-        headerLeft: () => (
-          <TouchableOpacity
-            onPress={() => navigation.openDrawer()}
-            style={{ marginLeft: 10, marginRight: 15 }}
-          >
-            <Ionicons name="menu" size={30} color="white" />
-          </TouchableOpacity>
-        ),
-      })}
+      }}
     >
       <Stack.Screen
         name="InventoryList"
         component={InventoryScreen}
-        options={{ title: "Inventario SIGAT" }}
+        // 2. ¡EL MENÚ HAMBURGUESA VA AQUÍ! Solo en la pantalla principal.
+        options={({ navigation }) => ({
+          title: "Inventario SIGAT",
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => navigation.openDrawer()}
+              style={{ marginLeft: 10, marginRight: 15 }}
+            >
+              <Ionicons name="menu" size={30} color="white" />
+            </TouchableOpacity>
+          ),
+        })}
       />
+      
+      {/* 3. A partir de aquí, las demás pantallas tendrán su flecha de "Atrás" automáticamente */}
       <Stack.Screen
         name="Detalles"
         component={DetailScreen}
@@ -1622,7 +1670,7 @@ export default function App() {
             });
           }
         } catch (error) {
-          console.log("Error al obtener datos del usuario:", error);
+          console.error("Error al obtener datos del usuario:", error);
         }
       } else {
         setUserData(null);
@@ -1639,18 +1687,18 @@ export default function App() {
       <View
         style={{
           flex: 1,
-          backgroundColor: BACKGROUND_COLOR,
+          backgroundColor: BACKGROUND_COLOR || "#121212", // Fallback a oscuro por si acaso
           justifyContent: "center",
           alignItems: "center",
         }}
       >
-        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+        <ActivityIndicator size="large" color={PRIMARY_COLOR || "#FF9800"} />
       </View>
     );
   }
 
   return (
-// ¡ESTO ES VITAL! El Provider envuelve la app para que todos tengan acceso a userData
+    // ¡ESTO ES VITAL! El Provider envuelve la app para que todos tengan acceso a userData
     <AuthContext.Provider value={{ user, userData }}>
       <NavigationContainer>
         {user ? (
@@ -1660,7 +1708,7 @@ export default function App() {
               headerShown: false,
               // --- ESTO ES LO NUEVO: OBLIGA AL MENÚ A SER OSCURO ---
               drawerStyle: {
-                backgroundColor: BACKGROUND_COLOR,
+                backgroundColor: BACKGROUND_COLOR || "#121212",
                 width: 280, // Un tamaño estándar y elegante
               },
             }}
@@ -1675,8 +1723,9 @@ export default function App() {
               options={{ 
                 headerShown: true, // Encendemos la barra superior solo para esta ventana
                 title: 'Acerca de', // Título que aparecerá en la parte superior
-                headerStyle: { backgroundColor: CARD_COLOR }, // Color de fondo oscuro para la barra
-                headerTintColor: PRIMARY_COLOR, // Botón de retroceso y texto en naranja
+                headerStyle: { backgroundColor: CARD_COLOR || "#1E1E1E" }, // Color de fondo oscuro para la barra
+                headerTintColor: PRIMARY_COLOR || "#FF9800", // Botón de retroceso y texto en naranja
+                headerTitleStyle: { fontWeight: "bold" }, // MEJORA: Para mantener consistencia con el MainStack
               }} 
             />
           </Drawer.Navigator>
