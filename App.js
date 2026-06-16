@@ -821,18 +821,16 @@ function DetailScreen({ route, navigation }) {
 }
 
 // ==========================================
-// 3. PANTALLA PRINCIPAL 
+// 3. PANTALLA PRINCIPAL (3 Niveles: Cat > SubCat > Sección)
 // ==========================================
 
 function InventoryScreen() {
   const navigation = useNavigation();
   const { userData } = useContext(AuthContext);
 
-  // --- DETECCIÓN DE MODO OSCURO ---
   const colorScheme = useColorScheme(); 
   const isDarkMode = colorScheme === 'dark';
 
-  // --- COLORES DINÁMICOS ---
   const theme = {
     background: isDarkMode ? "#121212" : "#F5F5F5",
     cardBg: isDarkMode ? "#1E1E1E" : "#FFFFFF",
@@ -840,21 +838,39 @@ function InventoryScreen() {
     subText: isDarkMode ? "#AAAAAA" : "#666666",
     border: isDarkMode ? "#333333" : "#E0E0E0",
     searchBg: isDarkMode ? "#2C2C2C" : "#EEEEEE",
+    modalOverlay: isDarkMode ? "rgba(0,0,0,0.8)" : "rgba(0,0,0,0.5)"
   };
+
+  const PRIMARY_COLOR = "#f57c00"; 
+  const SUCCESS_COLOR = "#388e3c";
+  const DANGER_COLOR = "#d32f2f";
 
   const [equipos, setEquipos] = useState([]);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
+  
+  // --- ESTADOS DE NAVEGACIÓN (3 NIVELES) ---
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null);
+  const [selectedNivel3, setSelectedNivel3] = useState(null);
+
+  // --- MODAL EDITAR ---
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [itemToEdit, setItemToEdit] = useState({ tipo: "", oldName: "", newName: "" });
+  
+  // --- MODAL CREAR CARPETA ---
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creationTargetLevel, setCreationTargetLevel] = useState("subcategoria");
 
   const categoryConfig = {
     "CÓMPUTO": { icon: "💻", color: "#4A90E2" }, 
-    "COMPUTO": { icon: "💻", color: "#4A90E2" }, 
     "AUDIOVISUAL": { icon: "📽️", color: "#E94A67" }, 
     "REDES": { icon: "🌐", color: "#50E3C2" }, 
     "ACCESORIOS": { icon: "🔌", color: "#F5A623" }, 
     "MOBILIARIO": { icon: "🪑", color: "#8B572A" }, 
     "GENERAL": { icon: "📦", color: "#9B9B9B" }, 
+    "OTROS": { icon: "📦", color: "#9B9B9B" },
   };
 
   const cargarDatos = async () => {
@@ -874,57 +890,146 @@ function InventoryScreen() {
     return unsubscribe;
   }, [navigation]);
 
+  // ==========================================
+  // LÓGICA DE FILTRADO (3 NIVELES)
+  // ==========================================
   const filteredEquipos = equipos.filter((item) => {
+    if (item.isTemplate) return false; 
     const query = searchText.toLowerCase();
     const nombreMatch = item.nombre ? item.nombre.toLowerCase().includes(query) : false;
     const idMatch = item.id ? item.id.toLowerCase().includes(query) : false;
     return nombreMatch || idMatch;
   });
 
-  const categoryEquipos = equipos.filter((item) => {
-    const cat = item.categoria ? item.categoria.toUpperCase() : "GENERAL";
-    return cat === selectedCategory;
-  });
-
+  // NIVEL 1: Categorías
   const categoriasData = equipos.reduce((acc, item) => {
     const cat = item.categoria ? item.categoria.toUpperCase() : "GENERAL";
-    if (!acc[cat]) { acc[cat] = 0; }
-    acc[cat]++;
+    if (!acc[cat]) acc[cat] = 0;
+    if (!item.isTemplate) acc[cat]++; 
     return acc;
   }, {});
+  const listaCategorias = Object.keys(categoriasData).map(key => ({ nombre: key, cantidad: categoriasData[key] })).sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-  const listaCategorias = Object.keys(categoriasData).map(key => ({
-    nombre: key,
-    cantidad: categoriasData[key]
-  })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  // NIVEL 2: Subcategorías
+  const equiposNivel2 = equipos.filter(item => (item.categoria?.toUpperCase() || "GENERAL") === selectedCategory);
+  const subcategoriasData = equiposNivel2.reduce((acc, item) => {
+    const sub = item.subcategoria ? item.subcategoria.toUpperCase() : "GENERAL";
+    if (!acc[sub]) acc[sub] = 0;
+    if (!item.isTemplate) acc[sub]++; 
+    return acc;
+  }, {});
+  const listaSubcategorias = Object.keys(subcategoriasData).map(key => ({ nombre: key, cantidad: subcategoriasData[key] })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const tieneSubcategoriasReales = listaSubcategorias.some(sub => sub.nombre !== "GENERAL");
+
+  // NIVEL 3: Sub-Subcategorías (Secciones)
+  const equiposNivel3 = equiposNivel2.filter(item => (item.subcategoria?.toUpperCase() || "GENERAL") === selectedSubcategory);
+  const nivel3Data = equiposNivel3.reduce((acc, item) => {
+    const n3 = item.subSubcategoria ? item.subSubcategoria.toUpperCase() : "GENERAL";
+    if (!acc[n3]) acc[n3] = 0;
+    if (!item.isTemplate) acc[n3]++; 
+    return acc;
+  }, {});
+  const listaNivel3 = Object.keys(nivel3Data).map(key => ({ nombre: key, cantidad: nivel3Data[key] })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const tieneNivel3Real = listaNivel3.some(n3 => n3.nombre !== "GENERAL");
+
+  // PRODUCTOS FINALES A MOSTRAR
+  const equiposFinales = equiposNivel3.filter(item => 
+    (item.subSubcategoria?.toUpperCase() || "GENERAL") === selectedNivel3 && !item.isTemplate
+  );
 
   // ==========================================
-  // DISEÑO DE LOS ELEMENTOS
+  // FUNCIONES DE EDICIÓN Y CREACIÓN
   // ==========================================
-  
+  const handleLongPressMenu = (tipo, nombreActual) => {
+    const isAdmin = userData?.rol === "admin" || userData?.rol === "Administrador";
+    if (!isAdmin) return; 
+
+    Alert.alert("⚙️ Opciones", `¿Qué deseas hacer con la ${tipo} "${nombreActual}"?`, [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Editar Nombre", onPress: () => { setItemToEdit({ tipo, oldName: nombreActual, newName: nombreActual }); setEditModalVisible(true); } },
+        { text: "Eliminar", style: "destructive", onPress: () => handleEliminarConfirmacion(tipo, nombreActual) }
+    ]);
+  };
+
+  const handleEliminarConfirmacion = (tipo, nombreActual) => {
+    Alert.alert("⚠️ Confirmar Eliminación", `¿Seguro que deseas eliminar "${nombreActual}"?\n\nLos equipos serán reasignados a "General".`, [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Sí, Eliminar", style: "destructive", onPress: () => procesarAccionFirebase(tipo, nombreActual, "General") }
+    ]);
+  };
+
+  const guardarNuevoNombre = () => {
+    if (!itemToEdit.newName.trim()) { Alert.alert("Error", "El nombre no puede estar vacío."); return; }
+    setEditModalVisible(false);
+    procesarAccionFirebase(itemToEdit.tipo, itemToEdit.oldName, itemToEdit.newName.trim());
+    
+    if (itemToEdit.tipo === "categoría" && selectedCategory === itemToEdit.oldName.toUpperCase()) setSelectedCategory(itemToEdit.newName.toUpperCase());
+    else if (itemToEdit.tipo === "subcategoría" && selectedSubcategory === itemToEdit.oldName.toUpperCase()) setSelectedSubcategory(itemToEdit.newName.toUpperCase());
+    else if (itemToEdit.tipo === "sección" && selectedNivel3 === itemToEdit.oldName.toUpperCase()) setSelectedNivel3(itemToEdit.newName.toUpperCase());
+  };
+
+  const procesarAccionFirebase = async (tipo, nombreActual, nuevoNombre) => {
+    try {
+      const promesas = [];
+      equipos.forEach((item) => {
+        let match = false;
+        let updateData = {};
+
+        if (tipo === "categoría" && item.categoria?.toUpperCase() === nombreActual.toUpperCase()) { updateData.categoria = nuevoNombre; match = true; } 
+        else if (tipo === "subcategoría" && item.subcategoria?.toUpperCase() === nombreActual.toUpperCase()) { updateData.subcategoria = nuevoNombre; match = true; }
+        else if (tipo === "sección" && item.subSubcategoria?.toUpperCase() === nombreActual.toUpperCase()) { updateData.subSubcategoria = nuevoNombre; match = true; }
+
+        if (match) promesas.push(updateDoc(doc(db, "Equipos", item.id), updateData));
+      });
+
+      await Promise.all(promesas);
+      Alert.alert("¡Listo!", `Actualizado correctamente.`);
+      cargarDatos();
+    } catch (e) { Alert.alert("Error", e.message); }
+  };
+
+  const abrirModalCreacion = (nivel) => {
+    setCreationTargetLevel(nivel);
+    setCreateModalVisible(true);
+  };
+
+  const handleCrearCarpeta = async () => {
+    if (!newFolderName.trim()) { Alert.alert("Error", "El nombre no puede estar vacío."); return; }
+    
+    try {
+      await addDoc(collection(db, "Equipos"), {
+        nombre: "Plantilla Sistema",
+        categoria: selectedCategory,
+        subcategoria: creationTargetLevel === "nivel3" ? selectedSubcategory : newFolderName.trim().toUpperCase(),
+        subSubcategoria: creationTargetLevel === "nivel3" ? newFolderName.trim().toUpperCase() : "GENERAL",
+        estado: "SISTEMA",
+        isTemplate: true 
+      });
+      
+      Alert.alert("¡Éxito!", `Carpeta creada.`);
+      setCreateModalVisible(false);
+      setNewFolderName("");
+      cargarDatos();
+    } catch (error) { Alert.alert("Error", error.message); }
+  };
+
+  // ==========================================
+  // RENDERERS
+  // ==========================================
   const renderItem = ({ item }) => {
     const estadoActual = item.estado ? item.estado.toUpperCase() : "DISPONIBLE";
-    const isPrestado = estadoActual === "PRESTADO" || estadoActual === "SIN ENTREGAR";
-    const isNoResponde = estadoActual === "NO RESPONDE";
-    const isFueraDeServicio = estadoActual === "FUERA DE SERVICIO";
-
     let statusColor = SUCCESS_COLOR; 
-    if (isNoResponde) { statusColor = "#ad1457"; } 
-    else if (isPrestado) { statusColor = DANGER_COLOR; } 
-    else if (isFueraDeServicio) { statusColor = "#616161"; }
+    if (estadoActual === "NO RESPONDE") statusColor = "#ad1457";
+    else if (estadoActual === "PRESTADO" || estadoActual === "SIN ENTREGAR") statusColor = DANGER_COLOR;
+    else if (estadoActual === "FUERA DE SERVICIO") statusColor = "#616161";
 
     return (
-      <TouchableOpacity
-        style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]}
-        onPress={() => navigation.navigate("Detalles", { item: item })}
-      >
+      <TouchableOpacity style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]} onPress={() => navigation.navigate("Detalles", { item })}>
         <View style={[styles.cardIndicator, { backgroundColor: statusColor }]} />
         <View style={styles.cardContent}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>{item.nombre || "Sin nombre"}</Text>
           <Text style={[styles.cardSubtitle, { color: theme.subText }]}>ID: {item.id}</Text>
-          <Text style={[styles.cardStatus, { color: statusColor, fontWeight: "bold" }]}>
-            {estadoActual}
-          </Text>
+          <Text style={[styles.cardStatus, { color: statusColor, fontWeight: "bold" }]}>{estadoActual}</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={statusColor} />
       </TouchableOpacity>
@@ -933,112 +1038,197 @@ function InventoryScreen() {
 
   const renderCategoria = ({ item }) => {
     const config = categoryConfig[item.nombre] || { icon: "📁", color: PRIMARY_COLOR };
-
     return (
-      <TouchableOpacity
-        style={[styles.categoryCard, { backgroundColor: theme.cardBg, borderColor: config.color }]}
-        onPress={() => setSelectedCategory(item.nombre)}
-      >
-        <View style={[styles.iconContainer, { backgroundColor: config.color + "20" }]}>
-          <Text style={styles.categoryIcon}>{config.icon}</Text>
-        </View>
+      <TouchableOpacity style={[styles.categoryCard, { backgroundColor: theme.cardBg, borderColor: config.color }]} onPress={() => setSelectedCategory(item.nombre)} onLongPress={() => handleLongPressMenu("categoría", item.nombre)} delayLongPress={800}>
+        <View style={[styles.iconContainer, { backgroundColor: config.color + "20" }]}><Text style={styles.categoryIcon}>{config.icon}</Text></View>
         <Text style={[styles.categoryName, { color: theme.text }]}>{item.nombre}</Text>
-        <Text style={[styles.categoryCount, { color: theme.subText }]}>
-          {item.cantidad} {item.cantidad === 1 ? "artículo" : "artículos"}
-        </Text>
+        <Text style={[styles.categoryCount, { color: theme.subText }]}>{item.cantidad} equipos</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderSubcategoria = ({ item }) => {
+    const config = categoryConfig[selectedCategory] || { color: PRIMARY_COLOR };
+    if (item.nombre === "GENERAL" && item.cantidad === 0) return null;
+    return (
+      <TouchableOpacity style={[styles.categoryCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]} onPress={() => setSelectedSubcategory(item.nombre)} onLongPress={() => handleLongPressMenu("subcategoría", item.nombre)} delayLongPress={800}>
+        <View style={[styles.iconContainer, { backgroundColor: config.color + "15" }]}><Text style={styles.categoryIcon}>📁</Text></View>
+        <Text style={[styles.categoryName, { color: theme.text }]}>{item.nombre}</Text>
+        <Text style={[styles.categoryCount, { color: theme.subText }]}>{item.cantidad} equipos</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderNivel3 = ({ item }) => {
+    const config = categoryConfig[selectedCategory] || { color: PRIMARY_COLOR };
+    if (item.nombre === "GENERAL" && item.cantidad === 0) return null;
+    return (
+      <TouchableOpacity style={[styles.categoryCard, { backgroundColor: theme.cardBg, borderColor: theme.border }]} onPress={() => setSelectedNivel3(item.nombre)} onLongPress={() => handleLongPressMenu("sección", item.nombre)} delayLongPress={800}>
+        <View style={[styles.iconContainer, { backgroundColor: config.color + "15" }]}><Text style={styles.categoryIcon}>📂</Text></View>
+        <Text style={[styles.categoryName, { color: theme.text }]}>{item.nombre}</Text>
+        <Text style={[styles.categoryCount, { color: theme.subText }]}>{item.cantidad} equipos</Text>
       </TouchableOpacity>
     );
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={[styles.container, { flex: 1, backgroundColor: theme.background }]} 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <KeyboardAvoidingView style={[styles.container, { flex: 1, backgroundColor: theme.background }]} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={theme.background} />
 
-      <TouchableOpacity
-        style={styles.bigOrangeButton}
-        onPress={() => navigation.navigate("Scanner", { returnMode: false })}
-      >
+      <TouchableOpacity style={styles.bigOrangeButton} onPress={() => navigation.navigate("Scanner", { returnMode: false })}>
         <Text style={styles.bigButtonText}>ESCANEAR PRODUCTO</Text>
       </TouchableOpacity>
 
       <View style={styles.headerRow}>
         {isSearchActive ? (
-          <View style={[styles.searchContainer, { backgroundColor: theme.searchBg, borderColor: theme.border }]}>
+          <View style={[styles.searchContainer, { backgroundColor: theme.searchBg, borderColor: theme.border, flex: 1, flexDirection: "row", alignItems: "center", borderRadius: 8, paddingHorizontal: 10 }]}>
             <Ionicons name="search" size={20} color={theme.subText} />
-            <TextInput
-              style={[styles.searchInput, { color: theme.text }]}
-              placeholder="Buscar producto..."
-              placeholderTextColor={theme.subText}
-              value={searchText}
-              onChangeText={setSearchText}
-              autoFocus
-            />
-            <TouchableOpacity onPress={() => { setIsSearchActive(false); setSearchText(""); }}>
-              <Ionicons name="close-circle" size={24} color={theme.subText} />
-            </TouchableOpacity>
+            <TextInput style={[styles.searchInput, { color: theme.text, flex: 1, marginLeft: 8 }]} placeholder="Buscar producto..." placeholderTextColor={theme.subText} value={searchText} onChangeText={setSearchText} autoFocus />
+            <TouchableOpacity onPress={() => { setIsSearchActive(false); setSearchText(""); }}><Ionicons name="close-circle" size={24} color={theme.subText} /></TouchableOpacity>
           </View>
         ) : (
-          <>
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1, justifyContent: "space-between" }}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              {selectedCategory ? selectedCategory : "Categorías"}
+              {selectedNivel3 ? selectedNivel3 : selectedSubcategory ? selectedSubcategory : selectedCategory ? selectedCategory : "Categorías"}
             </Text>
-            <TouchableOpacity onPress={() => setIsSearchActive(true)}>
-              <Ionicons name="search" size={28} color={PRIMARY_COLOR} />
-            </TouchableOpacity>
-          </>
+            <TouchableOpacity onPress={() => setIsSearchActive(true)}><Ionicons name="search" size={28} color={PRIMARY_COLOR} /></TouchableOpacity>
+          </View>
         )}
       </View>
 
+      {/* ========================================== */}
+      {/* ÁRBOL DE DECISIONES DE RENDERIZADO */}
+      {/* ========================================== */}
       {searchText !== "" ? (
-        <FlatList
-          key="search-list"
-          data={filteredEquipos}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 80 }}
-          keyboardShouldPersistTaps="handled" 
-          ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.subText }]}>No se encontraron resultados.</Text>}
-        />
+        <FlatList key="lista-busqueda" data={filteredEquipos} renderItem={renderItem} keyExtractor={i => i.id} contentContainerStyle={{ paddingBottom: 80 }} />
       ) : selectedCategory ? (
-        <View style={{ flex: 1 }}>
-          <TouchableOpacity 
-            onPress={() => setSelectedCategory(null)} 
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
-            <Text style={[styles.backButtonText, { color: theme.text }]}>Volver a categorías</Text>
-          </TouchableOpacity>
+        
+        !tieneSubcategoriasReales ? (
+          // 1. MODO DIRECTO NIVEL 1: Categoría sin carpetas
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 15 }}>
+              <TouchableOpacity onPress={() => setSelectedCategory(null)} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
+                <Text style={[styles.backButtonText, { color: theme.text }]}>Volver a Categorías</Text>
+              </TouchableOpacity>
+              {userData?.rol === "admin" && (
+                <TouchableOpacity onPress={() => abrirModalCreacion("subcategoria")}>
+                  <Ionicons name="create-outline" size={28} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <FlatList key="prod-n1" data={equiposNivel2.filter(i => !i.isTemplate)} renderItem={renderItem} keyExtractor={i => i.id} contentContainerStyle={{ paddingBottom: 80 }} />
+          </View>
 
-          <FlatList
-            key="category-list"
-            data={categoryEquipos}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingBottom: 80 }}
-            keyboardShouldPersistTaps="handled"
-          />
-        </View>
+        ) : selectedSubcategory ? (
+
+          !tieneNivel3Real ? (
+            // 2. MODO DIRECTO NIVEL 2: La subcategoría NO tiene tercer nivel
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 15 }}>
+                <TouchableOpacity onPress={() => setSelectedSubcategory(null)} style={styles.backButton}>
+                  <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
+                  <Text style={[styles.backButtonText, { color: theme.text }]}>Volver a {selectedCategory}</Text>
+                </TouchableOpacity>
+                {userData?.rol === "admin" && (
+                  <TouchableOpacity onPress={() => abrirModalCreacion("nivel3")}>
+                    <Ionicons name="create-outline" size={28} color={PRIMARY_COLOR} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <FlatList key="prod-n2" data={equiposNivel3.filter(i => !i.isTemplate)} renderItem={renderItem} keyExtractor={i => i.id} contentContainerStyle={{ paddingBottom: 80 }} />
+            </View>
+
+          ) : selectedNivel3 ? (
+            // 3. MODO PRODUCTOS FINALES: Entró a una sección (3er Nivel)
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 15 }}>
+                <TouchableOpacity onPress={() => setSelectedNivel3(null)} style={styles.backButton}>
+                  <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
+                  <Text style={[styles.backButtonText, { color: theme.text }]}>Volver a {selectedSubcategory}</Text>
+                </TouchableOpacity>
+              </View>
+              <FlatList key="prod-n3" data={equiposFinales} renderItem={renderItem} keyExtractor={i => i.id} contentContainerStyle={{ paddingBottom: 80 }} />
+            </View>
+
+          ) : (
+            // 4. MODO MOSTRAR CARPETAS DE 3ER NIVEL (Ej. Laptops, Monitores)
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 15 }}>
+                <TouchableOpacity onPress={() => { setSelectedSubcategory(null); setSelectedNivel3(null); }} style={styles.backButton}>
+                  <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
+                  <Text style={[styles.backButtonText, { color: theme.text }]}>Volver a {selectedCategory}</Text>
+                </TouchableOpacity>
+                {userData?.rol === "admin" && (
+                  <TouchableOpacity onPress={() => abrirModalCreacion("nivel3")}>
+                    <Ionicons name="create-outline" size={28} color={PRIMARY_COLOR} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <FlatList key="lista-n3-2col" data={listaNivel3} renderItem={renderNivel3} keyExtractor={i => i.nombre} numColumns={2} contentContainerStyle={{ paddingBottom: 80 }} />
+            </View>
+          )
+
+        ) : (
+          // 5. MODO MOSTRAR CARPETAS DE 2DO NIVEL (Subcategorías)
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: 15 }}>
+              <TouchableOpacity onPress={() => { setSelectedCategory(null); setSelectedSubcategory(null); setSelectedNivel3(null); }} style={styles.backButton}>
+                <Ionicons name="arrow-back" size={20} color={PRIMARY_COLOR} />
+                <Text style={[styles.backButtonText, { color: theme.text }]}>Volver a Categorías</Text>
+              </TouchableOpacity>
+              {userData?.rol === "admin" && (
+                <TouchableOpacity onPress={() => abrirModalCreacion("subcategoria")}>
+                  <Ionicons name="create-outline" size={28} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+              )}
+            </View>
+            <FlatList key="lista-sub-2col" data={listaSubcategorias} renderItem={renderSubcategoria} keyExtractor={i => i.nombre} numColumns={2} contentContainerStyle={{ paddingBottom: 80 }} />
+          </View>
+        )
+
       ) : (
-        <FlatList
-          key="grid-list"
-          data={listaCategorias}
-          renderItem={renderCategoria}
-          keyExtractor={(item) => item.nombre}
-          numColumns={2} 
-          contentContainerStyle={{ paddingBottom: 80 }}
-          keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={<Text style={[styles.emptyText, { color: theme.subText }]}>No hay categorías registradas.</Text>}
-        />
+        // 6. MODO MOSTRAR CARPETAS DE 1ER NIVEL (Raíz)
+        <FlatList key="lista-cat-2col" data={listaCategorias} renderItem={renderCategoria} keyExtractor={i => i.nombre} numColumns={2} contentContainerStyle={{ paddingBottom: 80 }} />
       )}
 
+      {/* ========================================== */}
+      {/* MODALES */}
+      {/* ========================================== */}
+
+      {/* Modal Editar */}
+      <Modal visible={editModalVisible} transparent={true} animationType="fade">
+        <View style={{ flex: 1, backgroundColor: theme.modalOverlay, justifyContent: "center", alignItems: "center" }}>
+          <View style={{ width: "85%", backgroundColor: theme.cardBg, borderRadius: 12, padding: 20, elevation: 5 }}>
+            <Text style={{ fontSize: 18, fontWeight: "bold", color: theme.text, marginBottom: 15 }}>Editar {itemToEdit.tipo}</Text>
+            <Text style={{ color: theme.subText, marginBottom: 5 }}>Nombre anterior: {itemToEdit.oldName}</Text>
+            <TextInput style={[styles.input, { backgroundColor: theme.searchBg, color: theme.text, borderColor: theme.border, marginBottom: 20 }]} value={itemToEdit.newName} onChangeText={(text) => setItemToEdit(prev => ({ ...prev, newName: text }))} autoFocus />
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 15 }}>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)} style={{ padding: 10 }}><Text style={{ color: theme.subText, fontWeight: "bold" }}>CANCELAR</Text></TouchableOpacity>
+              <TouchableOpacity onPress={guardarNuevoNombre} style={{ padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }}><Text style={{ color: "white", fontWeight: "bold" }}>GUARDAR</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Crear Carpeta */}
+      <Modal visible={createModalVisible} transparent={true} animationType="fade">
+        <View style={{ flex: 1, backgroundColor: theme.modalOverlay, justifyContent: "center", alignItems: "center" }}>
+          <View style={{ width: "85%", backgroundColor: theme.cardBg, borderRadius: 12, padding: 20, elevation: 5 }}>
+            <Text style={{ fontSize: 18, fontWeight: "bold", color: theme.text, marginBottom: 15 }}>
+              Nueva {creationTargetLevel === "nivel3" ? "sección en " + selectedSubcategory : "subcategoría en " + selectedCategory}
+            </Text>
+            <TextInput style={[styles.input, { backgroundColor: theme.searchBg, color: theme.text, borderColor: theme.border, marginBottom: 20 }]} placeholder="Ej. Laptops, Monitores..." placeholderTextColor={theme.subText} value={newFolderName} onChangeText={setNewFolderName} autoFocus />
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 15 }}>
+              <TouchableOpacity onPress={() => {setCreateModalVisible(false); setNewFolderName("");}} style={{ padding: 10 }}><Text style={{ color: theme.subText, fontWeight: "bold" }}>CANCELAR</Text></TouchableOpacity>
+              <TouchableOpacity onPress={handleCrearCarpeta} style={{ padding: 10, backgroundColor: PRIMARY_COLOR, borderRadius: 8 }}><Text style={{ color: "white", fontWeight: "bold" }}>CREAR</Text></TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {userData?.rol === "admin" && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => navigation.navigate("AddProduct")}
-        >
+        <TouchableOpacity style={styles.fab} onPress={() => navigation.navigate("AddProduct")}>
           <Ionicons name="add" size={30} color="white" />
         </TouchableOpacity>
       )}
@@ -1206,12 +1396,25 @@ function ScannerScreen({ route, navigation }) {
 
 
 // ==========================================
-// 5. PANTALLA AGREGAR PRODUCTO
+// FUNCIONES AUXILIARES DE ICONOS
+// ==========================================
+const obtenerIconoCategoria = (catName) => {
+  const name = catName ? catName.toUpperCase() : "";
+  if (name === "CÓMPUTO") return "💻";
+  if (name === "AUDIOVISUAL") return "📽️";
+  if (name === "REDES") return "🌐";
+  if (name === "ACCESORIOS") return "🔌";
+  if (name === "MOBILIARIO") return "🪑";
+  return "📦"; // Por defecto
+};
+
+
+// ==========================================
+// 5. PANTALLA AGREGAR PRODUCTO (DINÁMICA 3 NIVELES)
 // ==========================================
 function AddProductScreen({ navigation, route }) {
   const { userData } = useContext(AuthContext);
   
-  // --- DETECCIÓN DE MODO OSCURO ---
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === 'dark';
 
@@ -1232,54 +1435,134 @@ function AddProductScreen({ navigation, route }) {
   const [descripcion, setDescripcion] = useState("");
   const [loading, setLoading] = useState(false);
   
-  const [open, setOpen] = useState(false);
-  const [categoria, setCategoria] = useState("Cómputo");
-  const [items, setItems] = useState([
-    { label: '💻 Cómputo (Laptops, Teclados, Mouse)', value: 'Cómputo' },
-    { label: '📽️ Audiovisual (Proyectores)', value: 'Audiovisual' },
-    { label: '🌐 Redes (Switches, Cables)', value: 'Redes' },
-    { label: '🔌 Accesorios (Cargadores, Adaptadores)', value: 'Accesorios' },
-    { label: '🪑 Mobiliario (Bases de Webcam)', value: 'Mobiliario' },
-    { label: '📦 General', value: 'General' }
-  ]);
+  // --- ÁRBOL DINÁMICO DE FIREBASE (3 NIVELES) ---
+  const [arbolCategorias, setArbolCategorias] = useState({});
 
-  // --- LÓGICA: GENERAR ID AUTOMÁTICO ---
-  const generarSiguienteId = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, "Equipos"));
-      let maxNum = 0;
+  // --- ESTADOS CATEGORÍA (NIVEL 1) ---
+  const [openCat, setOpenCat] = useState(false);
+  const [categoria, setCategoria] = useState(null);
+  const [nuevaCategoria, setNuevaCategoria] = useState(""); 
+  const [catItems, setCatItems] = useState([]);
 
-      querySnapshot.forEach((doc) => {
-        const currentId = doc.id; 
-        if (currentId.startsWith("EQ-")) {
-          const numStr = currentId.replace("EQ-", "");
-          const num = parseInt(numStr, 10);
-          if (!isNaN(num) && num > maxNum) {
-            maxNum = num;
+  // --- ESTADOS SUBCATEGORÍA (NIVEL 2) ---
+  const [openSubCat, setOpenSubCat] = useState(false);
+  const [subcategoria, setSubcategoria] = useState(null);
+  const [nuevaSubcategoria, setNuevaSubcategoria] = useState("");
+  const [subCatItems, setSubCatItems] = useState([]);
+
+  // --- ESTADOS TERCER NIVEL (NIVEL 3) ---
+  const [openNivel3, setOpenNivel3] = useState(false);
+  const [nivel3, setNivel3] = useState(null);
+  const [nuevaNivel3, setNuevaNivel3] = useState("");
+  const [nivel3Items, setNivel3Items] = useState([]);
+
+  // 1. CARGAR ÁRBOL DE FIREBASE
+  useEffect(() => {
+    const fetchCategorias = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "Equipos"));
+        const arbolTemp = {};
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const cat = data.categoria ? data.categoria.toUpperCase() : "GENERAL";
+          const subcat = data.subcategoria ? data.subcategoria.toUpperCase() : "GENERAL";
+          const n3 = data.subSubcategoria ? data.subSubcategoria.toUpperCase() : "GENERAL";
+
+          if (!arbolTemp[cat]) arbolTemp[cat] = {};
+          if (!arbolTemp[cat][subcat]) arbolTemp[cat][subcat] = new Set();
+          if (n3) arbolTemp[cat][subcat].add(n3);
+        });
+
+        const arbolFinal = {};
+        for (let cat in arbolTemp) {
+          arbolFinal[cat] = {};
+          for (let sub in arbolTemp[cat]) {
+            arbolFinal[cat][sub] = Array.from(arbolTemp[cat][sub]).sort();
           }
         }
-      });
+        
+        setArbolCategorias(arbolFinal);
 
-      const siguienteNum = maxNum + 1;
-      const nuevoId = `EQ-${siguienteNum.toString().padStart(3, "0")}`;
-      setIdQr(nuevoId);
+        // Llenar Dropdown 1
+        const itemsCategoria = Object.keys(arbolFinal).sort().map(k => ({
+          label: `${obtenerIconoCategoria(k)} ${k}`,
+          value: k
+        }));
+        itemsCategoria.push({ label: '➕ Agregar otra categoría...', value: 'Otra' });
+        setCatItems(itemsCategoria);
 
-    } catch (error) {
-      console.error("Error al generar ID:", error);
-      setIdQr("EQ-001"); // Fallback de seguridad
+      } catch (error) {
+        console.error("Error al cargar categorías:", error);
+      }
+    };
+    fetchCategorias();
+  }, []);
+
+  // 2. ACTUALIZAR SUBCATEGORÍAS CUANDO CAMBIA CATEGORÍA
+  useEffect(() => {
+    if (!categoria || categoria === 'Otra') {
+      setSubCatItems([{ label: '➕ Agregar otra subcategoría...', value: 'Otra' }]);
+      setSubcategoria(null); setNuevaSubcategoria("");
+      setNivel3(null); setNuevaNivel3("");
+      return;
     }
-  };
+
+    const subs = Object.keys(arbolCategorias[categoria] || {}).sort();
+    const itemsSub = subs.map(s => ({ label: `📁 ${s}`, value: s }));
+    itemsSub.push({ label: '➕ Agregar otra subcategoría...', value: 'Otra' });
+    
+    setSubCatItems(itemsSub);
+    setSubcategoria(null); setNuevaSubcategoria("");
+    setNivel3(null); setNuevaNivel3("");
+  }, [categoria, arbolCategorias]);
+
+  // 3. ACTUALIZAR TERCER NIVEL CUANDO CAMBIA SUBCATEGORÍA
+  useEffect(() => {
+    if (!subcategoria || subcategoria === 'Otra' || !categoria || categoria === 'Otra') {
+      setNivel3Items([{ label: '➕ Agregar nueva sección...', value: 'Otra' }]);
+      setNivel3(null); setNuevaNivel3("");
+      return;
+    }
+
+    const n3s = arbolCategorias[categoria]?.[subcategoria] || [];
+    const itemsN3 = n3s.map(s => ({ label: `📂 ${s}`, value: s }));
+    itemsN3.push({ label: '➕ Agregar nueva sección...', value: 'Otra' });
+    
+    setNivel3Items(itemsN3);
+    setNivel3(null); setNuevaNivel3("");
+  }, [subcategoria, categoria, arbolCategorias]);
 
   useEffect(() => {
+    const generarSiguienteId = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "Equipos"));
+        let maxNum = 0;
+        querySnapshot.forEach((doc) => {
+          if (doc.id.startsWith("EQ-")) {
+            const num = parseInt(doc.id.replace("EQ-", ""), 10);
+            if (!isNaN(num) && num > maxNum) maxNum = num;
+          }
+        });
+        setIdQr(`EQ-${(maxNum + 1).toString().padStart(3, "0")}`);
+      } catch (error) { setIdQr("EQ-001"); }
+    };
     generarSiguienteId();
   }, []);
-  // -------------------------------------------
 
   const handleSaveProduct = async () => {
     if (!idQr.trim() || idQr === "Cargando..." || !nombre.trim()) {
-      Alert.alert("Error", "Espera a que se genere el ID y llena el Nombre.");
-      return;
+      Alert.alert("Error", "Espera a que se genere el ID y llena el Nombre."); return;
     }
+
+    const catFinal = categoria === 'Otra' ? nuevaCategoria.trim().toUpperCase() : (categoria || "GENERAL");
+    const subcatFinal = subcategoria === 'Otra' ? nuevaSubcategoria.trim().toUpperCase() : (subcategoria || "GENERAL");
+    const n3Final = nivel3 === 'Otra' ? nuevaNivel3.trim().toUpperCase() : (nivel3 || "GENERAL");
+
+    if (!catFinal || !subcatFinal || !n3Final) {
+      Alert.alert("Error", "Por favor ingresa categoría, subcategoría y sección."); return;
+    }
+
     setLoading(true);
     try {
       const equipoRef = doc(db, "Equipos", idQr.trim());
@@ -1287,8 +1570,7 @@ function AddProductScreen({ navigation, route }) {
 
       if (docSnap.exists()) {
         Alert.alert("Error", "Ya existe un equipo registrado con este ID.");
-        setLoading(false);
-        return;
+        setLoading(false); return;
       }
 
       await setDoc(equipoRef, {
@@ -1296,113 +1578,65 @@ function AddProductScreen({ navigation, route }) {
         nombre: nombre,
         marca: marca,
         no_serie: noSerie,
-        categoria: categoria || "General",
+        categoria: catFinal,
+        subcategoria: subcatFinal,
+        subSubcategoria: n3Final, // 👈 Se guarda el nivel 3
         descripcion: descripcion,
         estado: "DISPONIBLE",
-        alumno_nombre: "",
-        alumno_matricula: "",
-        poseedor_actual: "",
+        isTemplate: false,
         fecha_registro: new Date().toISOString(),
-        personal_registro: userData?.nombre || "Admin",
-        registrado_por: userData?.email || "",
+        personal_registro: userData?.nombre || "Admin"
       });
 
-      Alert.alert("¡Éxito!", "Equipo agregado correctamente al inventario.");
+      Alert.alert("¡Éxito!", "Equipo agregado correctamente.");
       navigation.navigate("InventoryList");
-    } catch (error) {
-      Alert.alert("Error", "No se pudo guardar el equipo: " + error.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { Alert.alert("Error", error.message); } 
+    finally { setLoading(false); }
   };
 
   return (
-    <KeyboardAwareScrollView 
-      style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={{ flexGrow: 1, padding: 15, paddingBottom: 40 }}
-      enableOnAndroid={true} 
-      extraHeight={120} 
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
+    <KeyboardAwareScrollView style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ flexGrow: 1, padding: 15, paddingBottom: 40 }} enableOnAndroid={true} extraHeight={120} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={[styles.detailCard, { backgroundColor: theme.cardBg }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Nuevo Equipo</Text>
 
-        <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo (Autogenerado):</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.disabledInput, color: theme.subText, borderColor: theme.border }]}
-          value={idQr}
-          editable={false}
-        />
+        <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo:</Text>
+        <TextInput style={[styles.input, { backgroundColor: theme.disabledInput, color: theme.subText, borderColor: theme.border }]} value={idQr} editable={false} />
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Nombre del Artículo:</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-          placeholder="Ej. Proyector"
-          placeholderTextColor={theme.subText}
-          value={nombre}
-          onChangeText={setNombre}
-        />
+        <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={nombre} onChangeText={setNombre} />
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Marca:</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-          placeholder="Ej. Epson, Dell, HP..."
-          placeholderTextColor={theme.subText}
-          value={marca}
-          onChangeText={setMarca}
-        />
+        <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={marca} onChangeText={setMarca} />
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Número de Serie:</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-          placeholder="Ej. SN123456789"
-          placeholderTextColor={theme.subText}
-          value={noSerie}
-          onChangeText={setNoSerie}
-          autoCapitalize="characters"
-        />
+        <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={noSerie} onChangeText={setNoSerie} autoCapitalize="characters" />
 
+        {/* --- DROPDOWN CATEGORÍA --- */}
         <Text style={[styles.inputLabel, { color: theme.text }]}>Categoría:</Text>
-        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 1000 }) }}>
-          <DropDownPicker
-            open={open}
-            value={categoria}
-            items={items}
-            setOpen={setOpen}
-            setValue={setCategoria}
-            setItems={setItems}
-            theme={isDarkMode ? "DARK" : "LIGHT"}
-            placeholder="Selecciona una categoría"
-            style={{ backgroundColor: theme.inputBg, borderColor: theme.border, borderRadius: 8 }}
-            dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }}
-            textStyle={{ color: theme.text, fontSize: 16 }}
-            listMode="MODAL" // <-- MEJORA: Modal es mucho más seguro en formularios scrolleables
-            modalProps={{ animationType: "slide" }} // Le da una animación suave al abrir
-            modalTitle="Selecciona una categoría"
-          />
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 3000 }) }}>
+          <DropDownPicker open={openCat} value={categoria} items={catItems} setOpen={setOpenCat} setValue={setCategoria} setItems={setCatItems} theme={isDarkMode ? "DARK" : "LIGHT"} placeholder="Selecciona una categoría" style={{ backgroundColor: theme.inputBg, borderColor: theme.border }} dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }} textStyle={{ color: theme.text }} listMode="MODAL" modalTitle="Categorías" />
         </View>
+        {categoria === 'Otra' && ( <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, marginBottom: 15 }]} placeholder="Escribe la nueva categoría" placeholderTextColor={theme.subText} value={nuevaCategoria} onChangeText={setNuevaCategoria} /> )}
+
+        {/* --- DROPDOWN SUBCATEGORÍA --- */}
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Subcategoría:</Text>
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 2000 }) }}>
+          <DropDownPicker open={openSubCat} value={subcategoria} items={subCatItems} setOpen={setOpenSubCat} setValue={setSubcategoria} setItems={setSubCatItems} theme={isDarkMode ? "DARK" : "LIGHT"} placeholder="Selecciona una subcategoría" disabled={!categoria && categoria !== 'Otra'} style={{ backgroundColor: !categoria ? theme.disabledInput : theme.inputBg, borderColor: theme.border }} dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }} textStyle={{ color: theme.text }} listMode="MODAL" modalTitle="Subcategorías" />
+        </View>
+        {subcategoria === 'Otra' && ( <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, marginBottom: 15 }]} placeholder="Escribe la nueva subcategoría" placeholderTextColor={theme.subText} value={nuevaSubcategoria} onChangeText={setNuevaSubcategoria} /> )}
+
+        {/* --- DROPDOWN TERCER NIVEL --- */}
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Sección / Tercer Nivel:</Text>
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 1000 }) }}>
+          <DropDownPicker open={openNivel3} value={nivel3} items={nivel3Items} setOpen={setOpenNivel3} setValue={setNivel3} setItems={setNivel3Items} theme={isDarkMode ? "DARK" : "LIGHT"} placeholder="Selecciona una sección" disabled={!subcategoria && subcategoria !== 'Otra'} style={{ backgroundColor: !subcategoria ? theme.disabledInput : theme.inputBg, borderColor: theme.border }} dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }} textStyle={{ color: theme.text }} listMode="MODAL" modalTitle="Secciones" />
+        </View>
+        {nivel3 === 'Otra' && ( <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, marginBottom: 15 }]} placeholder="Ej. Laptops, Impresoras..." placeholderTextColor={theme.subText} value={nuevaNivel3} onChangeText={setNuevaNivel3} /> )}
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Descripción Breve:</Text>
-        <TextInput
-          style={[styles.input, { height: 80, textAlignVertical: "top", backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-          placeholder="Detalles, estado físico, etc."
-          placeholderTextColor={theme.subText}
-          value={descripcion}
-          onChangeText={setDescripcion}
-          multiline
-        />
+        <TextInput style={[styles.input, { height: 80, textAlignVertical: "top", backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={descripcion} onChangeText={setDescripcion} multiline />
 
-        <TouchableOpacity
-          style={styles.bigOrangeButton}
-          onPress={handleSaveProduct}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.bigButtonText}>GUARDAR EQUIPO</Text>
-          )}
+        <TouchableOpacity style={styles.bigOrangeButton} onPress={handleSaveProduct} disabled={loading}>
+          {loading ? <ActivityIndicator color="white" /> : <Text style={styles.bigButtonText}>GUARDAR EQUIPO</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAwareScrollView>
@@ -1410,10 +1644,9 @@ function AddProductScreen({ navigation, route }) {
 }
 
 // ==========================================
-// 5.1. PANTALLA EDITAR PRODUCTO (SOLO ADMIN)
+// 5.1. PANTALLA EDITAR PRODUCTO (DINÁMICA 3 NIVELES)
 // ==========================================
 function EditProductScreen({ route, navigation }) {
-  // Extraemos el item con un fallback seguro (un objeto vacío) para que los hooks no se rompan
   const { item = {} } = route.params || {};
 
   const colorScheme = useColorScheme();
@@ -1429,152 +1662,172 @@ function EditProductScreen({ route, navigation }) {
     disabledInput: isDarkMode ? "#222222" : "#E8E8E8",
   };
 
-  // 1. ¡LOS HOOKS VAN PRIMERO! (Regla de oro de React)
   const [nombre, setNombre] = useState(item.nombre || "");
   const [marca, setMarca] = useState(item.marca || ""); 
   const [noSerie, setNoSerie] = useState(item.no_serie || ""); 
   const [descripcion, setDescripcion] = useState(item.descripcion || "");
   const [loading, setLoading] = useState(false);
   
-  const [open, setOpen] = useState(false);
-  const [categoria, setCategoria] = useState(item.categoria || "Cómputo");
-  const [items, setItems] = useState([
-    { label: '💻 Cómputo (Laptops, Teclados, Mouse)', value: 'Cómputo' },
-    { label: '📽️ Audiovisual (Proyectores)', value: 'Audiovisual' },
-    { label: '🌐 Redes (Switches, Cables)', value: 'Redes' },
-    { label: '🔌 Accesorios (Cargadores, Adaptadores)', value: 'Accesorios' },
-    { label: '🪑 Mobiliario (Bases de Webcam)', value: 'Mobiliario' },
-    { label: '📦 General', value: 'General' }
-  ]);
+  const [arbolCategorias, setArbolCategorias] = useState({});
 
-  // 2. AHORA SÍ, SI NO HAY ITEM, RETORNAMOS EL MENSAJE DE ERROR
-  // Lo comprobamos verificando si no tiene ID
-  if (!item.id) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background }}>
-        <Text style={{ color: theme.text, fontSize: 16, marginBottom: 20 }}>Error: No se encontró el producto.</Text>
-        <TouchableOpacity style={styles.bigOrangeButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.bigButtonText}>VOLVER</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const [openCat, setOpenCat] = useState(false);
+  const [categoria, setCategoria] = useState(item.categoria ? item.categoria.toUpperCase() : null);
+  const [nuevaCategoria, setNuevaCategoria] = useState("");
+  const [catItems, setCatItems] = useState([]);
 
-  const handleUpdateProduct = async () => {
-    if (!nombre.trim()) {
-      Alert.alert("Error", "El Nombre del artículo no puede estar vacío.");
+  const [openSubCat, setOpenSubCat] = useState(false);
+  const [subcategoria, setSubcategoria] = useState(item.subcategoria ? item.subcategoria.toUpperCase() : null);
+  const [nuevaSubcategoria, setNuevaSubcategoria] = useState("");
+  const [subCatItems, setSubCatItems] = useState([]);
+
+  const [openNivel3, setOpenNivel3] = useState(false);
+  const [nivel3, setNivel3] = useState(item.subSubcategoria ? item.subSubcategoria.toUpperCase() : null);
+  const [nuevaNivel3, setNuevaNivel3] = useState("");
+  const [nivel3Items, setNivel3Items] = useState([]);
+
+  useEffect(() => {
+    const fetchCategorias = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "Equipos"));
+        const arbolTemp = {};
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const cat = data.categoria ? data.categoria.toUpperCase() : "GENERAL";
+          const subcat = data.subcategoria ? data.subcategoria.toUpperCase() : "GENERAL";
+          const n3 = data.subSubcategoria ? data.subSubcategoria.toUpperCase() : "GENERAL";
+
+          if (!arbolTemp[cat]) arbolTemp[cat] = {};
+          if (!arbolTemp[cat][subcat]) arbolTemp[cat][subcat] = new Set();
+          if (n3) arbolTemp[cat][subcat].add(n3);
+        });
+
+        const arbolFinal = {};
+        for (let cat in arbolTemp) {
+          arbolFinal[cat] = {};
+          for (let sub in arbolTemp[cat]) {
+            arbolFinal[cat][sub] = Array.from(arbolTemp[cat][sub]).sort();
+          }
+        }
+        
+        setArbolCategorias(arbolFinal);
+
+        const itemsCategoria = Object.keys(arbolFinal).sort().map(k => ({
+          label: `${obtenerIconoCategoria(k)} ${k}`, value: k
+        }));
+        itemsCategoria.push({ label: '➕ Agregar otra categoría...', value: 'Otra' });
+        setCatItems(itemsCategoria);
+
+        if (item.categoria && !arbolFinal[item.categoria.toUpperCase()]) {
+            setCategoria("Otra"); setNuevaCategoria(item.categoria.toUpperCase());
+        }
+      } catch (error) { console.error("Error al cargar datos:", error); }
+    };
+    fetchCategorias();
+  }, []);
+
+  useEffect(() => {
+    if (!categoria || categoria === 'Otra') {
+      setSubCatItems([{ label: '➕ Agregar otra subcategoría...', value: 'Otra' }]);
+      if (categoria !== item.categoria?.toUpperCase()) { setSubcategoria(null); setNivel3(null); }
       return;
     }
+
+    const subs = Object.keys(arbolCategorias[categoria] || {}).sort();
+    const itemsSub = subs.map(s => ({ label: `📁 ${s}`, value: s }));
+    itemsSub.push({ label: '➕ Agregar otra subcategoría...', value: 'Otra' });
+    setSubCatItems(itemsSub);
+
+    if (subcategoria && subcategoria !== "Otra" && !subs.includes(subcategoria)) {
+        setSubcategoria(null); setNivel3(null);
+    }
+  }, [categoria, arbolCategorias]);
+
+  useEffect(() => {
+    if (!subcategoria || subcategoria === 'Otra' || !categoria || categoria === 'Otra') {
+      setNivel3Items([{ label: '➕ Agregar nueva sección...', value: 'Otra' }]);
+      if (subcategoria !== item.subcategoria?.toUpperCase()) { setNivel3(null); }
+      return;
+    }
+
+    const n3s = arbolCategorias[categoria]?.[subcategoria] || [];
+    const itemsN3 = n3s.map(s => ({ label: `📂 ${s}`, value: s }));
+    itemsN3.push({ label: '➕ Agregar nueva sección...', value: 'Otra' });
+    setNivel3Items(itemsN3);
+
+    if (nivel3 && nivel3 !== "Otra" && !n3s.includes(nivel3)) {
+        setNivel3(null);
+    }
+  }, [subcategoria, categoria, arbolCategorias]);
+
+  if (!item.id) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Error.</Text></View>;
+
+  const handleUpdateProduct = async () => {
+    if (!nombre.trim()) { Alert.alert("Error", "El Nombre no puede estar vacío."); return; }
+
+    const catFinal = categoria === 'Otra' ? nuevaCategoria.trim().toUpperCase() : (categoria || "GENERAL");
+    const subcatFinal = subcategoria === 'Otra' ? nuevaSubcategoria.trim().toUpperCase() : (subcategoria || "GENERAL");
+    const n3Final = nivel3 === 'Otra' ? nuevaNivel3.trim().toUpperCase() : (nivel3 || "GENERAL");
 
     setLoading(true);
     try {
       const equipoRef = doc(db, "Equipos", item.id);
-      
       await updateDoc(equipoRef, {
-        nombre: nombre,
-        marca: marca, 
-        no_serie: noSerie, 
-        categoria: categoria || "General",
-        descripcion: descripcion,
+        nombre: nombre, marca: marca, no_serie: noSerie, 
+        categoria: catFinal, subcategoria: subcatFinal, subSubcategoria: n3Final, descripcion: descripcion,
       });
 
-      Alert.alert("¡Actualizado!", "Los datos del equipo han sido guardados.");
-      
+      Alert.alert("¡Actualizado!", "Los datos se han guardado.");
       navigation.navigate("Detalles", {
-        item: { ...item, nombre, marca, no_serie: noSerie, categoria, descripcion },
+        item: { ...item, nombre, marca, no_serie: noSerie, categoria: catFinal, subcategoria: subcatFinal, subSubcategoria: n3Final, descripcion },
       });
-    } catch (error) {
-      Alert.alert("Error", "No se pudo actualizar: " + error.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { Alert.alert("Error", error.message); } 
+    finally { setLoading(false); }
   };
 
   return (
-    <KeyboardAwareScrollView 
-      style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={{ flexGrow: 1, padding: 15, paddingBottom: 40 }}
-      enableOnAndroid={true} 
-      extraHeight={120} 
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
+    <KeyboardAwareScrollView style={{ flex: 1, backgroundColor: theme.background }} contentContainerStyle={{ flexGrow: 1, padding: 15, paddingBottom: 40 }} enableOnAndroid={true} extraHeight={120} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={[styles.detailCard, { backgroundColor: theme.cardBg }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Editar Equipo</Text>
 
-        <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo (Código QR):</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.disabledInput, color: theme.subText, borderColor: theme.border }]}
-          value={item.id}
-          editable={false}
-        />
+        <Text style={[styles.inputLabel, { color: theme.text }]}>ID del Equipo:</Text>
+        <TextInput style={[styles.input, { backgroundColor: theme.disabledInput, color: theme.subText, borderColor: theme.border }]} value={item.id} editable={false} />
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Nombre del Artículo:</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-          placeholderTextColor={theme.subText}
-          value={nombre}
-          onChangeText={setNombre}
-        />
+        <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={nombre} onChangeText={setNombre} />
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Marca:</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-          placeholder="Ej. Epson, Dell, HP..."
-          placeholderTextColor={theme.subText}
-          value={marca}
-          onChangeText={setMarca}
-        />
+        <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={marca} onChangeText={setMarca} />
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Número de Serie:</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-          placeholder="Ej. SN123456789"
-          placeholderTextColor={theme.subText}
-          value={noSerie}
-          onChangeText={setNoSerie}
-          autoCapitalize="characters"
-        />
+        <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={noSerie} onChangeText={setNoSerie} autoCapitalize="characters" />
 
+        {/* --- DROPDOWN CATEGORÍA --- */}
         <Text style={[styles.inputLabel, { color: theme.text }]}>Categoría:</Text>
-        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 1000 }) }}>
-          <DropDownPicker
-            open={open}
-            value={categoria}
-            items={items}
-            setOpen={setOpen}
-            setValue={setCategoria}
-            setItems={setItems}
-            theme={isDarkMode ? "DARK" : "LIGHT"}
-            placeholder="Selecciona una categoría"
-            style={{ backgroundColor: theme.inputBg, borderColor: theme.border, borderRadius: 8 }}
-            dropDownContainerStyle={{ backgroundColor: theme.inputBg, borderColor: theme.border }}
-            textStyle={{ color: theme.text, fontSize: 16 }}
-            listMode="MODAL" 
-            modalProps={{ animationType: "slide" }}
-            modalTitle="Selecciona una categoría"
-          />
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 3000 }) }}>
+          <DropDownPicker open={openCat} value={categoria} items={catItems} setOpen={setOpenCat} setValue={setCategoria} setItems={setCatItems} theme={isDarkMode ? "DARK" : "LIGHT"} listMode="MODAL" modalTitle="Categorías" />
         </View>
+        {categoria === 'Otra' && ( <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, marginBottom: 15 }]} value={nuevaCategoria} onChangeText={setNuevaCategoria} /> )}
+
+        {/* --- DROPDOWN SUBCATEGORÍA --- */}
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Subcategoría:</Text>
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 2000 }) }}>
+          <DropDownPicker open={openSubCat} value={subcategoria} items={subCatItems} setOpen={setOpenSubCat} setValue={setSubcategoria} setItems={setSubCatItems} theme={isDarkMode ? "DARK" : "LIGHT"} disabled={!categoria && categoria !== 'Otra'} listMode="MODAL" modalTitle="Subcategorías" />
+        </View>
+        {subcategoria === 'Otra' && ( <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, marginBottom: 15 }]} value={nuevaSubcategoria} onChangeText={setNuevaSubcategoria} /> )}
+
+        {/* --- DROPDOWN TERCER NIVEL --- */}
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Sección / Tercer Nivel:</Text>
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 1000 }) }}>
+          <DropDownPicker open={openNivel3} value={nivel3} items={nivel3Items} setOpen={setOpenNivel3} setValue={setNivel3} setItems={setNivel3Items} theme={isDarkMode ? "DARK" : "LIGHT"} disabled={!subcategoria && subcategoria !== 'Otra'} listMode="MODAL" modalTitle="Secciones" />
+        </View>
+        {nivel3 === 'Otra' && ( <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, marginBottom: 15 }]} value={nuevaNivel3} onChangeText={setNuevaNivel3} /> )}
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Descripción Breve:</Text>
-        <TextInput
-          style={[styles.input, { height: 80, textAlignVertical: "top", backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]}
-          placeholderTextColor={theme.subText}
-          value={descripcion}
-          onChangeText={setDescripcion}
-          multiline
-        />
+        <TextInput style={[styles.input, { height: 80, textAlignVertical: "top", backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={descripcion} onChangeText={setDescripcion} multiline />
 
-        <TouchableOpacity
-          style={styles.bigOrangeButton}
-          onPress={handleUpdateProduct}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.bigButtonText}>GUARDAR CAMBIOS</Text>
-          )}
+        <TouchableOpacity style={styles.bigOrangeButton} onPress={handleUpdateProduct} disabled={loading}>
+          {loading ? <ActivityIndicator color="white" /> : <Text style={styles.bigButtonText}>GUARDAR CAMBIOS</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAwareScrollView>
@@ -1590,9 +1843,8 @@ const Stack = createNativeStackNavigator();
 function MainStack() {
   return (
     <Stack.Navigator
-      // 1. Aquí dejamos SOLO los estilos visuales que comparten todas las pantallas
       screenOptions={{
-        headerStyle: { backgroundColor: PRIMARY_COLOR }, // Ojo: asegúrate de que PRIMARY_COLOR esté importado/definido
+        headerStyle: { backgroundColor: PRIMARY_COLOR }, 
         headerTintColor: "#fff",
         headerTitleStyle: { fontWeight: "bold" },
       }}
@@ -1600,7 +1852,6 @@ function MainStack() {
       <Stack.Screen
         name="InventoryList"
         component={InventoryScreen}
-        // 2. ¡EL MENÚ HAMBURGUESA VA AQUÍ! Solo en la pantalla principal.
         options={({ navigation }) => ({
           title: "Inventario SIGAT",
           headerLeft: () => (
@@ -1614,7 +1865,6 @@ function MainStack() {
         })}
       />
       
-      {/* 3. A partir de aquí, las demás pantallas tendrán su flecha de "Atrás" automáticamente */}
       <Stack.Screen
         name="Detalles"
         component={DetailScreen}
@@ -1633,7 +1883,6 @@ function MainStack() {
       <Stack.Screen
         name="Scanner"
         component={ScannerScreen}
-        // El escáner lo dejamos sin cabecera para que la cámara use toda la pantalla
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
@@ -1646,23 +1895,22 @@ function MainStack() {
 export default function App() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  
+  // Cambiamos el nombre de "loading" a "isAppLoading" para evitar conflictos
+  const [isAppLoading, setIsAppLoading] = useState(true);
 
   useEffect(() => {
-    // Escuchamos si el usuario inicia o cierra sesión
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
       if (currentUser) {
-        // Si hay un usuario, buscamos sus datos en la colección "Usuarios"
         try {
           const docRef = doc(db, "Usuarios", currentUser.uid);
           const docSnap = await getDoc(docRef);
 
           if (docSnap.exists()) {
-            setUserData(docSnap.data()); // Aquí obtenemos el nombre y el rol
+            setUserData(docSnap.data());
           } else {
-            // Si no existe el documento, le damos datos por defecto
             setUserData({
               email: currentUser.email,
               nombre: "Administrador",
@@ -1676,18 +1924,18 @@ export default function App() {
         setUserData(null);
       }
 
-      setLoading(false);
+      setIsAppLoading(false); // Actualizamos usando el nuevo nombre
     });
 
     return unsubscribe;
   }, []);
 
-  if (loading) {
+  if (isAppLoading) { // Usamos el nuevo nombre aquí
     return (
       <View
         style={{
           flex: 1,
-          backgroundColor: BACKGROUND_COLOR || "#121212", // Fallback a oscuro por si acaso
+          backgroundColor: BACKGROUND_COLOR || "#121212", 
           justifyContent: "center",
           alignItems: "center",
         }}
@@ -1698,7 +1946,6 @@ export default function App() {
   }
 
   return (
-    // ¡ESTO ES VITAL! El Provider envuelve la app para que todos tengan acceso a userData
     <AuthContext.Provider value={{ user, userData }}>
       <NavigationContainer>
         {user ? (
@@ -1706,28 +1953,23 @@ export default function App() {
             drawerContent={(props) => <CustomDrawerContent {...props} />}
             screenOptions={{
               headerShown: false,
-              // --- ESTO ES LO NUEVO: OBLIGA AL MENÚ A SER OSCURO ---
               drawerStyle: {
                 backgroundColor: BACKGROUND_COLOR || "#121212",
-                width: 280, // Un tamaño estándar y elegante
+                width: 280,
               },
             }}
           >
-            {/* 1. Tu pantalla principal con el inventario */}
             <Drawer.Screen name="Main" component={MainStack} />
 
-            {/* 2. NUEVA PANTALLA: Acerca del Desarrollador */}
             <Drawer.Screen 
               name="About" 
               component={AboutScreen} 
-              // MEJORA APLICADA: options ahora es una función que inyecta la navegación para forzar el menú
               options={({ navigation }) => ({ 
-                headerShown: true, // Encendemos la barra superior solo para esta ventana
-                title: 'Acerca de', // Título que aparecerá en la parte superior
-                headerStyle: { backgroundColor: CARD_COLOR || "#1E1E1E" }, // Color de fondo oscuro para la barra
-                headerTintColor: PRIMARY_COLOR || "#FF9800", // Botón de retroceso y texto en naranja
-                headerTitleStyle: { fontWeight: "bold" }, // Para mantener consistencia con el MainStack
-                // --- AQUÍ FORZAMOS EL BOTÓN DE HAMBURGUESA ---
+                headerShown: true, 
+                title: 'Acerca de', 
+                headerStyle: { backgroundColor: CARD_COLOR || "#1E1E1E" }, 
+                headerTintColor: PRIMARY_COLOR || "#FF9800", 
+                headerTitleStyle: { fontWeight: "bold" }, 
                 headerLeft: () => (
                   <TouchableOpacity
                     onPress={() => navigation.openDrawer()}
