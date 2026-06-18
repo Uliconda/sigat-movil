@@ -864,12 +864,13 @@ function InventoryScreen() {
   const [creationTargetLevel, setCreationTargetLevel] = useState("subcategoria");
 
   const categoryConfig = {
-    "CÓMPUTO": { icon: "💻", color: "#4A90E2" }, 
-    "AUDIOVISUAL": { icon: "📽️", color: "#E94A67" }, 
-    "REDES": { icon: "🌐", color: "#50E3C2" }, 
-    "ACCESORIOS": { icon: "🔌", color: "#F5A623" }, 
-    "MOBILIARIO": { icon: "🪑", color: "#8B572A" }, 
-    "GENERAL": { icon: "📦", color: "#9B9B9B" }, 
+    "CÓMPUTO": { icon: "💻", color: "#4A90E2" },       
+    "AUDIOVISUAL": { icon: "📽️", color: "#E94A67" },    
+    "REDES": { icon: "🌐", color: "#50E3C2" },          
+    "ACCESORIOS": { icon: "🔌", color: "#F5A623" },     
+    "MOBILIARIO": { icon: "🪑", color: "#8B572A" },     
+    "ADMINISTRATIVOS": { icon: "💼", color: "#8E24AA" },
+    "GENERAL": { icon: "📦", color: "#9B9B9B" },        
     "OTROS": { icon: "📦", color: "#9B9B9B" },
   };
 
@@ -975,9 +976,32 @@ function InventoryScreen() {
         let match = false;
         let updateData = {};
 
-        if (tipo === "categoría" && item.categoria?.toUpperCase() === nombreActual.toUpperCase()) { updateData.categoria = nuevoNombre; match = true; } 
-        else if (tipo === "subcategoría" && item.subcategoria?.toUpperCase() === nombreActual.toUpperCase()) { updateData.subcategoria = nuevoNombre; match = true; }
-        else if (tipo === "sección" && item.subSubcategoria?.toUpperCase() === nombreActual.toUpperCase()) { updateData.subSubcategoria = nuevoNombre; match = true; }
+        // 1. Nivel Categoría: Modifica todos los equipos de esta categoría (Global)
+        if (tipo === "categoría" && item.categoria?.toUpperCase() === nombreActual.toUpperCase()) { 
+          updateData.categoria = nuevoNombre; 
+          match = true; 
+        } 
+        
+        // 2. Nivel Subcategoría: Debe coincidir la subcategoría Y la categoría padre actual
+        else if (
+          tipo === "subcategoría" && 
+          item.subcategoria?.toUpperCase() === nombreActual.toUpperCase() &&
+          item.categoria?.toUpperCase() === selectedCategory // 👈 Candado agregado
+        ) { 
+          updateData.subcategoria = nuevoNombre; 
+          match = true; 
+        }
+        
+        // 3. Nivel Sección (Sub-Sub): Debe coincidir la sección, la subcategoría padre Y la categoría padre
+        else if (
+          tipo === "sección" && 
+          item.subSubcategoria?.toUpperCase() === nombreActual.toUpperCase() &&
+          item.subcategoria?.toUpperCase() === selectedSubcategory && // 👈 Candado agregado
+          item.categoria?.toUpperCase() === selectedCategory          // 👈 Candado agregado
+        ) { 
+          updateData.subSubcategoria = nuevoNombre; 
+          match = true; 
+        }
 
         if (match) promesas.push(updateDoc(doc(db, "Equipos", item.id), updateData));
       });
@@ -985,16 +1009,22 @@ function InventoryScreen() {
       await Promise.all(promesas);
       Alert.alert("¡Listo!", `Actualizado correctamente.`);
       cargarDatos();
-    } catch (e) { Alert.alert("Error", e.message); }
+    } catch (e) { 
+      Alert.alert("Error", e.message); 
+    }
   };
 
+  // 👇 AQUÍ ESTÁN LAS DOS FUNCIONES QUE FALTABAN 👇
   const abrirModalCreacion = (nivel) => {
     setCreationTargetLevel(nivel);
     setCreateModalVisible(true);
   };
 
   const handleCrearCarpeta = async () => {
-    if (!newFolderName.trim()) { Alert.alert("Error", "El nombre no puede estar vacío."); return; }
+    if (!newFolderName.trim()) { 
+      Alert.alert("Error", "El nombre no puede estar vacío."); 
+      return; 
+    }
     
     try {
       await addDoc(collection(db, "Equipos"), {
@@ -1010,8 +1040,11 @@ function InventoryScreen() {
       setCreateModalVisible(false);
       setNewFolderName("");
       cargarDatos();
-    } catch (error) { Alert.alert("Error", error.message); }
+    } catch (error) { 
+      Alert.alert("Error", error.message); 
+    }
   };
+  // 👆 FIN DE LAS FUNCIONES AGREGADAS 👆
 
   // ==========================================
   // RENDERERS
@@ -1405,7 +1438,8 @@ const obtenerIconoCategoria = (catName) => {
   if (name === "REDES") return "🌐";
   if (name === "ACCESORIOS") return "🔌";
   if (name === "MOBILIARIO") return "🪑";
-  return "📦"; // Por defecto
+  if (name === "ADMINISTRATIVOS") return "💼"; // 👈 Nueva categoría
+  return "📦"; // Por defecto para GENERAL u OTROS
 };
 
 
