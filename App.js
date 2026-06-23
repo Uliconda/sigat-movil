@@ -433,7 +433,7 @@ function AboutScreen() {
 }
 
 // ==========================================
-// 2. PANTALLA DE DETALLES (Actualizada con Marca y No. Serie)
+// 2. PANTALLA DE DETALLES (Actualizada con Estado Físico)
 // ==========================================
 function DetailScreen({ route, navigation }) {
   const { userData } = useContext(AuthContext); 
@@ -477,6 +477,18 @@ function DetailScreen({ route, navigation }) {
   if (isNoResponde) statusColor = "#ad1457"; // Magenta para falta
   else if (isPrestado) statusColor = DANGER_COLOR;
   else if (isFueraDeServicio) statusColor = "#616161"; 
+
+  // 🌟 NUEVO: Determinar color y texto secundario para la Condición Física
+  const condicionFisica = item.condicion_fisica || "Buen estado"; // "Buen estado" por defecto si es nuevo
+  let condicionColor = "#4caf50"; // Verde por defecto
+  let condicionNota = "";
+
+  if (condicionFisica === "Aceptable") {
+    condicionColor = "#ff9800"; // Naranja
+    condicionNota = " (Falta poco para reemplazar)";
+  } else if (condicionFisica === "Reemplazar") {
+    condicionColor = "#f44336"; // Rojo
+  }
 
   const refrescarDatos = async () => {
     try {
@@ -528,7 +540,7 @@ function DetailScreen({ route, navigation }) {
     } catch (error) {
       Alert.alert("Error", "No se pudo registrar.");
     } finally {
-      setLoading(false);
+      loading(false);
     }
   };
 
@@ -648,6 +660,21 @@ function DetailScreen({ route, navigation }) {
           >
             {item.estado || "DISPONIBLE"}
           </Text>
+
+          {/* 🌟 NUEVA SECCIÓN VISUAL: CONDICIÓN FÍSICA */}
+          <Text style={[styles.label, { color: theme.subText }]}>Condición Física (Último Retorno)</Text>
+          <Text
+            style={[
+              styles.value,
+              {
+                color: condicionColor,
+                fontWeight: "bold",
+              },
+            ]}
+          >
+            {condicionFisica}{condicionNota}
+          </Text>
+
           <Text style={[styles.label, { color: theme.subText }]}>Descripción</Text>
           <Text style={[styles.value, { color: theme.text }]}>
             {item.descripcion || "Sin descripción"}
@@ -809,7 +836,7 @@ function DetailScreen({ route, navigation }) {
                   <Text style={styles.textStyle}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.modalButton, { backgroundColor: reasonActionType === "BAJA" ? "#ff9800" : SUCCESS_COLOR }]} onPress={handleConfirmReasonAction} disabled={loading}>
-                  {loading ? <ActivityIndicator color="white" /> : <Text style={styles.textStyle}>{reasonActionType === "BAJA" ? "Dar de Baja" : "Reactivar"}</Text>}
+                  <Text style={styles.textStyle}>{reasonActionType === "BAJA" ? "Dar de Baja" : "Reactivar"}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1046,25 +1073,45 @@ function InventoryScreen() {
   };
   // 👆 FIN DE LAS FUNCIONES AGREGADAS 👆
 
-  // ==========================================
+// ==========================================
   // RENDERERS
   // ==========================================
   const renderItem = ({ item }) => {
+    // 1. COLOR DE LA FRANJA IZQUIERDA (Estado de disponibilidad)
     const estadoActual = item.estado ? item.estado.toUpperCase() : "DISPONIBLE";
     let statusColor = SUCCESS_COLOR; 
     if (estadoActual === "NO RESPONDE") statusColor = "#ad1457";
     else if (estadoActual === "PRESTADO" || estadoActual === "SIN ENTREGAR") statusColor = DANGER_COLOR;
     else if (estadoActual === "FUERA DE SERVICIO") statusColor = "#616161";
 
+    // 2. COLOR DE LA CONDICIÓN FÍSICA (Texto inferior)
+    const condicion = item.condicion_fisica || "Buen estado";
+    let condicionColor = "#4CAF50"; // Verde por defecto (Buen estado)
+    if (condicion === "Aceptable") condicionColor = "#FF9800"; // Naranja/Amarillo
+    else if (condicion === "Reemplazar") condicionColor = "#F44336"; // Rojo
+
+    // 3. DETERMINAR POSEEDOR
+    // Cambia "item.poseedor" si en tu BD la variable se llama distinto (ej. item.prestadoA)
+    const poseedor = item.alumno_nombre || (estadoActual === "DISPONIBLE" ? "En almacén" : "Sin asignar");
+
     return (
-      <TouchableOpacity style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]} onPress={() => navigation.navigate("Detalles", { item })}>
+      <TouchableOpacity 
+        style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.border }]} 
+        onPress={() => navigation.navigate("Detalles", { item })}
+      >
         <View style={[styles.cardIndicator, { backgroundColor: statusColor }]} />
         <View style={styles.cardContent}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>{item.nombre || "Sin nombre"}</Text>
-          <Text style={[styles.cardSubtitle, { color: theme.subText }]}>ID: {item.id}</Text>
-          <Text style={[styles.cardStatus, { color: statusColor, fontWeight: "bold" }]}>{estadoActual}</Text>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>
+            {item.nombre || "Sin nombre"}
+          </Text>
+          <Text style={[styles.cardSubtitle, { color: theme.subText, marginTop: 2, marginBottom: 4 }]}>
+            👤 {poseedor}
+          </Text>
+          <Text style={[styles.cardStatus, { color: condicionColor, fontWeight: "bold" }]}>
+            {condicion}
+          </Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={statusColor} />
+        <Ionicons name="chevron-forward" size={20} color={theme.subText} />
       </TouchableOpacity>
     );
   };
@@ -1270,7 +1317,7 @@ function InventoryScreen() {
 }
 
 // ==========================================
-// 4. PANTALLA DE ESCÁNER (Con Candado 🔒, Beep 🔊, Vibración 📳 y Fix de Cámara Fantasma 👻)
+// 4. PANTALLA DE ESCÁNER (Actualizada con Modal de Estado Físico)
 // ==========================================
 function ScannerScreen({ route, navigation }) {
   const { userData } = useContext(AuthContext);
@@ -1282,6 +1329,21 @@ function ScannerScreen({ route, navigation }) {
 
   const { returnMode, expectedId, mode } = route.params || {};
   const isProcessing = useRef(false);
+  
+  // 🌟 NUEVO: Estados para manejar el Modal de Estado del Equipo
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [tempEquipoData, setTempEquipoData] = useState(null); // Guarda los datos temporales del escaneo
+  const [guardando, setGuardando] = useState(false);
+
+  // --- DETECCIÓN DE MODO OSCURO (Alineado con tu app) ---
+  const colorScheme = useColorScheme();
+  const isDarkMode = colorScheme === 'dark';
+  const theme = {
+    cardBg: isDarkMode ? "#1E1E1E" : "#FFFFFF",
+    text: isDarkMode ? "#FFFFFF" : "#333333",
+    subText: isDarkMode ? "#AAAAAA" : "#666666",
+    border: isDarkMode ? "#444444" : "#DDDDDD",
+  };
   
   // Cargamos el sonido de forma moderna y optimizada
   const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
@@ -1328,34 +1390,16 @@ function ScannerScreen({ route, navigation }) {
           const docSnap = await getDoc(equipoRef);
           const nombreEquipo = docSnap.exists() ? docSnap.data().nombre : "Desconocido";
 
-          await updateDoc(equipoRef, {
-            estado: "DISPONIBLE",
-            usuarioActual: userData?.nombre || "Usuario Móvil",
-            alumno_nombre: "",
-            alumno_matricula: "",
-            poseedor_actual: "",
+          // 🌟 NUEVO: En lugar de guardar directo, abrimos el modal y guardamos los datos necesarios
+          setTempEquipoData({
+            ref: equipoRef,
+            id: expectedId,
+            nombre: nombreEquipo
           });
+          setStatusModalVisible(true);
 
-          await addDoc(collection(db, "Historial"), {
-            idEquipo: expectedId,
-            nombreEquipo: nombreEquipo,
-            accion: "DEVOLUCIÓN",
-            fecha: new Date(),
-            admin: userData?.nombre || "Usuario Desconocido",
-            observaciones: "Devuelto escaneando QR - Vía App Móvil 📱"
-          });
-
-          Alert.alert("✅ Devolución Exitosa", "El equipo está disponible y registrado en el historial.", [
-            {
-              text: "Terminar",
-              onPress: () => {
-                isProcessing.current = false;
-                navigation.navigate("Detalles", { item: { id: expectedId, nombre: nombreEquipo } });
-              }
-            },
-          ]);
         } catch (error) {
-          Alert.alert("Error", "No se pudo actualizar la base de datos.");
+          Alert.alert("Error", "No se pudo conectar con la base de datos.");
           setScanned(false);
           isProcessing.current = false;
         }
@@ -1397,6 +1441,52 @@ function ScannerScreen({ route, navigation }) {
     }
   };
 
+  // 🌟 NUEVA FUNCIÓN: Ejecuta la actualización final en Firebase con el estado seleccionado
+  const procesarDevolucionConEstado = async (condicionFisica) => {
+    if (!tempEquipoData) return;
+    setGuardando(true);
+
+    try {
+      // 1. Actualizar el equipo en Firebase
+      await updateDoc(tempEquipoData.ref, {
+        estado: "DISPONIBLE",
+        condicion_fisica: condicionFisica, // Guarda: "Buen estado", "Aceptable" o "Reemplazar"
+        usuarioActual: userData?.nombre || "Usuario Móvil",
+        alumno_nombre: "",
+        alumno_matricula: "",
+        poseedor_actual: "",
+      });
+
+      // 2. Agregar al Historial con la observación del estado físico
+      await addDoc(collection(db, "Historial"), {
+        idEquipo: tempEquipoData.id,
+        nombreEquipo: tempEquipoData.nombre,
+        accion: "DEVOLUCIÓN",
+        fecha: new Date(),
+        admin: userData?.nombre || "Usuario Desconocido",
+        observaciones: `Devuelto escaneando QR. Condición física: ${condicionFisica} - Vía App Móvil 📱`
+      });
+
+      setStatusModalVisible(false);
+      setGuardando(false);
+
+      Alert.alert("✅ Devolución Exitosa", `El equipo está disponible y se registró el estado físico.`, [
+        {
+          text: "Terminar",
+          onPress: () => {
+            isProcessing.current = false;
+            navigation.navigate("Detalles", { item: { id: tempEquipoData.id, nombre: tempEquipoData.nombre } });
+            setTempEquipoData(null);
+          }
+        },
+      ]);
+
+    } catch (error) {
+      setGuardando(false);
+      Alert.alert("Error", "No se pudo procesar la devolución.");
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "black" }}>
       {/* --- CONDICIÓN isFocused para apagar cámara si no estamos en la pantalla --- */}
@@ -1423,6 +1513,70 @@ function ScannerScreen({ route, navigation }) {
       >
         <Text style={{ color: "white", fontWeight: "bold" }}>Cancelar</Text>
       </TouchableOpacity>
+
+      {/* 🌟 NUEVO: MODAL PARA PREGUNTAR LA CONDICIÓN FÍSICA DEL EQUIPO */}
+      <Modal animationType="fade" transparent={true} visible={statusModalVisible}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.7)", padding: 20 }}>
+          <View style={{ backgroundColor: theme.cardBg, width: "100%", borderRadius: 20, padding: 25, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 }}>
+            
+            <Ionicons name="shield-checkmark" size={40} color={PRIMARY_COLOR} style={{ marginBottom: 10 }} />
+            
+            <Text style={{ fontSize: 20, fontWeight: "bold", color: theme.text, marginBottom: 10, textAlign: "center" }}>Evaluación de Equipo</Text>
+            <Text style={{ fontSize: 14, color: theme.subText, marginBottom: 20, textAlign: "center" }}>¿En qué estado físico se está devolviendo este equipo?</Text>
+
+            {guardando ? (
+              <ActivityIndicator size="large" color={PRIMARY_COLOR} style={{ marginVertical: 20 }} />
+            ) : (
+              <View style={{ width: "100%", gap: 12 }}>
+                
+                {/* OPCIÓN 1: BUEN ESTADO */}
+                <TouchableOpacity 
+                  style={{ width: "100%", backgroundColor: "#e8f5e9", borderWidth: 1, borderColor: "#4caf50", borderRadius: 12, padding: 15, flexDirection: "row", alignItems: "center" }}
+                  onPress={() => procesarDevolucionConEstado("Buen estado")}
+                >
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#4caf50", marginRight: 12 }} />
+                  <Text style={{ color: "#1b5e20", fontWeight: "bold", fontSize: 16 }}>Buen estado</Text>
+                </TouchableOpacity>
+
+                {/* OPCIÓN 2: ACEPTABLE */}
+                <TouchableOpacity 
+                  style={{ width: "100%", backgroundColor: "#fff8e1", borderWidth: 1, borderColor: "#ffb300", borderRadius: 12, padding: 15, flexDirection: "row", alignItems: "center" }}
+                  onPress={() => procesarDevolucionConEstado("Aceptable")}
+                >
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#ffb300", marginRight: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#b78103", fontWeight: "bold", fontSize: 16 }}>Aceptable</Text>
+                    <Text style={{ color: "#b78103", fontSize: 11 }}>Falta poco para reemplazarlo</Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* OPCIÓN 3: REEMPLAZAR */}
+                <TouchableOpacity 
+                  style={{ width: "100%", backgroundColor: "#ffebee", borderWidth: 1, borderColor: "#f44336", borderRadius: 12, padding: 15, flexDirection: "row", alignItems: "center" }}
+                  onPress={() => procesarDevolucionConEstado("Reemplazar")}
+                >
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: "#f44336", marginRight: 12 }} />
+                  <Text style={{ color: "#c62828", fontWeight: "bold", fontSize: 16 }}>Reemplazar</Text>
+                </TouchableOpacity>
+
+                {/* BOTÓN CANCELAR TOTAL */}
+                <TouchableOpacity 
+                  style={{ width: "100%", marginTop: 10, padding: 12, alignItems: "center" }}
+                  onPress={() => {
+                    setStatusModalVisible(false);
+                    setScanned(false);
+                    isProcessing.current = false;
+                    setTempEquipoData(null);
+                  }}
+                >
+                  <Text style={{ color: theme.subText, fontWeight: "600", fontSize: 15 }}>Cancelar devolución</Text>
+                </TouchableOpacity>
+
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1678,7 +1832,7 @@ function AddProductScreen({ navigation, route }) {
 }
 
 // ==========================================
-// 5.1. PANTALLA EDITAR PRODUCTO (DINÁMICA 3 NIVELES)
+// 5.1. PANTALLA EDITAR PRODUCTO (Actualizada con Condición Física)
 // ==========================================
 function EditProductScreen({ route, navigation }) {
   const { item = {} } = route.params || {};
@@ -1718,6 +1872,15 @@ function EditProductScreen({ route, navigation }) {
   const [nivel3, setNivel3] = useState(item.subSubcategoria ? item.subSubcategoria.toUpperCase() : null);
   const [nuevaNivel3, setNuevaNivel3] = useState("");
   const [nivel3Items, setNivel3Items] = useState([]);
+
+  // 🌟 NUEVO: Estados para la Condición Física
+  const [openCondicion, setOpenCondicion] = useState(false);
+  const [condicionFisica, setCondicionFisica] = useState(item.condicion_fisica || "Buen estado");
+  const [condicionItems, setCondicionItems] = useState([
+    { label: '🟢 Buen estado', value: 'Buen estado' },
+    { label: '🟡 Aceptable', value: 'Aceptable' },
+    { label: '🔴 Reemplazar', value: 'Reemplazar' }
+  ]);
 
   useEffect(() => {
     const fetchCategorias = async () => {
@@ -1806,14 +1969,24 @@ function EditProductScreen({ route, navigation }) {
     setLoading(true);
     try {
       const equipoRef = doc(db, "Equipos", item.id);
+      
+      // 🌟 NUEVO: Agregamos "condicion_fisica" al guardado
       await updateDoc(equipoRef, {
-        nombre: nombre, marca: marca, no_serie: noSerie, 
-        categoria: catFinal, subcategoria: subcatFinal, subSubcategoria: n3Final, descripcion: descripcion,
+        nombre: nombre, 
+        marca: marca, 
+        no_serie: noSerie, 
+        categoria: catFinal, 
+        subcategoria: subcatFinal, 
+        subSubcategoria: n3Final, 
+        descripcion: descripcion,
+        condicion_fisica: condicionFisica 
       });
 
       Alert.alert("¡Actualizado!", "Los datos se han guardado.");
+      
+      // 🌟 NUEVO: Pasamos el parámetro de vuelta a la pantalla de Detalles
       navigation.navigate("Detalles", {
-        item: { ...item, nombre, marca, no_serie: noSerie, categoria: catFinal, subcategoria: subcatFinal, subSubcategoria: n3Final, descripcion },
+        item: { ...item, nombre, marca, no_serie: noSerie, categoria: catFinal, subcategoria: subcatFinal, subSubcategoria: n3Final, descripcion, condicion_fisica: condicionFisica },
       });
     } catch (error) { Alert.alert("Error", error.message); } 
     finally { setLoading(false); }
@@ -1856,6 +2029,22 @@ function EditProductScreen({ route, navigation }) {
           <DropDownPicker open={openNivel3} value={nivel3} items={nivel3Items} setOpen={setOpenNivel3} setValue={setNivel3} setItems={setNivel3Items} theme={isDarkMode ? "DARK" : "LIGHT"} disabled={!subcategoria && subcategoria !== 'Otra'} listMode="MODAL" modalTitle="Secciones" />
         </View>
         {nivel3 === 'Otra' && ( <TextInput style={[styles.input, { backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border, marginBottom: 15 }]} value={nuevaNivel3} onChangeText={setNuevaNivel3} /> )}
+
+        {/* 🌟 NUEVO: DROPDOWN CONDICIÓN FÍSICA --- */}
+        <Text style={[styles.inputLabel, { color: theme.text }]}>Condición Física:</Text>
+        <View style={{ marginBottom: 15, ...(Platform.OS !== 'android' && { zIndex: 500 }) }}>
+          <DropDownPicker 
+            open={openCondicion} 
+            value={condicionFisica} 
+            items={condicionItems} 
+            setOpen={setOpenCondicion} 
+            setValue={setCondicionFisica} 
+            setItems={setCondicionItems} 
+            theme={isDarkMode ? "DARK" : "LIGHT"} 
+            listMode="MODAL" 
+            modalTitle="Condición Física" 
+          />
+        </View>
 
         <Text style={[styles.inputLabel, { color: theme.text }]}>Descripción Breve:</Text>
         <TextInput style={[styles.input, { height: 80, textAlignVertical: "top", backgroundColor: theme.inputBg, color: theme.text, borderColor: theme.border }]} placeholderTextColor={theme.subText} value={descripcion} onChangeText={setDescripcion} multiline />
