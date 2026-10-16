@@ -1,15 +1,12 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-
-// --- IMPORTACIONES CAMBIADAS PARA REACT NATIVE ---
+import { 
+  initializeAuth, 
+  getAuth, 
+  getReactNativePersistence 
+} from "firebase/auth";
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
-import { getReactNativePersistence, initializeAuth } from "firebase/auth";
 
-// (Comentamos Analytics porque en React Native suele causar errores de "window is not defined")
-// import { getAnalytics } from "firebase/analytics";
-
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCb43aVyAPrDuYLpqBEbNgwPFaqNMilFus",
   authDomain: "sigat-627cd.firebaseapp.com",
@@ -20,15 +17,20 @@ const firebaseConfig = {
   measurementId: "G-D6VRF6QJH2",
 };
 
-// 1. Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// 1. Inicializar la app si no existe
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// 2. Initialize Firestore (Base de datos)
-export const db = getFirestore(app);
+// 2. Inicializar Auth de manera nativa con persistencia
+let auth;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+  });
+} catch (e) {
+  auth = getAuth(app);
+}
 
-// 3. Initialize Auth CON PERSISTENCIA (Esto mantiene la sesión abierta en el celular)
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+// 3. Inicializar Firestore
+const db = getFirestore(app);
 
-// const analytics = getAnalytics(app); // Lo dejamos comentado por seguridad
+export { auth, db };

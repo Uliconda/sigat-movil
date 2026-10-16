@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import { registerRootComponent } from 'expo';
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
   DrawerItem,
 } from "@react-navigation/drawer";
-import { NavigationContainer, useNavigation, useIsFocused } from "@react-navigation/native"; // <--- ✅ AQUÍ ES SU LUGAR CORRECTO
+import { NavigationContainer, useNavigation, useIsFocused } from "@react-navigation/native"; 
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
@@ -89,6 +90,7 @@ const Theme = {
     placeholder: '#888888',
   }
 };
+
 
 // ==========================================
 // 0. PANTALLA DE LOGIN
@@ -2211,6 +2213,7 @@ export default function App() {
     </AuthContext.Provider>
   );
 }
+registerRootComponent(App);
 
 // ==========================================
 // 8. ESTILOS
