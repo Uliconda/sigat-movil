@@ -11,12 +11,11 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DropDownPicker from 'react-native-dropdown-picker';
 import { useAudioPlayer } from 'expo-audio';
-import { createContext, useContext, useEffect, useState, useRef } from "react";
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -26,7 +25,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
   Vibration,
   Image,
@@ -56,7 +54,6 @@ import { auth, db } from "./firebaseConfig";
 const PRIMARY_COLOR = "#FF6F00";
 const BACKGROUND_COLOR = "#121212";
 const CARD_COLOR = "#1E1E1E";
-const TEXT_COLOR = "#E0E0E0";
 const SUCCESS_COLOR = "#4CAF50";
 const DANGER_COLOR = "#F44336";
 const DISABLED_COLOR = "#555555";
@@ -114,7 +111,7 @@ function LoginScreen() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
-    } catch (error) {
+    } catch {
       Alert.alert("Error de acceso", "Correo o contraseña incorrectos.");
       setLoading(false);
     }
@@ -492,19 +489,19 @@ function DetailScreen({ route, navigation }) {
     condicionColor = "#f44336"; // Rojo
   }
 
-  const refrescarDatos = async () => {
+  const refrescarDatos = useCallback(async () => {
     try {
       const docSnap = await getDoc(doc(db, "Equipos", item.id));
       if (docSnap.exists()) setItem({ id: docSnap.id, ...docSnap.data() });
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error("Error al refrescar equipo:", error);
     }
-  };
+  }, [item.id]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", refrescarDatos);
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, refrescarDatos]);
 
   const handleConfirmarPrestamo = async () => {
     if (nombreAlumno.trim() === "" || matriculaAlumno.trim() === "")
@@ -539,10 +536,10 @@ function DetailScreen({ route, navigation }) {
       setNombreAlumno("");
       setMatriculaAlumno("");
       Alert.alert("¡Éxito!", "El equipo ha sido prestado y registrado en el Historial.");
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "No se pudo registrar.");
     } finally {
-      loading(false);
+      setLoading(false);
     }
   };
 
@@ -585,7 +582,7 @@ function DetailScreen({ route, navigation }) {
       setReasonModalVisible(false);
       setReasonText("");
       Alert.alert("¡Éxito!", `El equipo ha sido ${reasonActionType === "BAJA" ? "dado de baja" : "reactivado"}.`);
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Hubo un problema al actualizar el estado.");
     } finally {
       setLoading(false);
@@ -612,7 +609,7 @@ function DetailScreen({ route, navigation }) {
               await deleteDoc(doc(db, "Equipos", item.id));
               Alert.alert("Eliminado", "El equipo ha sido borrado del inventario.");
               navigation.navigate("InventoryList");
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "No se pudo eliminar el equipo.");
             }
           },
@@ -915,6 +912,7 @@ function InventoryScreen() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     cargarDatos();
     const unsubscribe = navigation.addListener("focus", () => cargarDatos());
     return unsubscribe;
@@ -1325,19 +1323,19 @@ function ScannerScreen({ route, navigation }) {
   const { userData } = useContext(AuthContext);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  
+
   // --- Hook para saber si la pantalla está activa (Fix de Cámara Fantasma) ---
-  const isFocused = useIsFocused(); 
+  const isFocused = useIsFocused();
 
   const { returnMode, expectedId, mode } = route.params || {};
   const isProcessing = useRef(false);
-  
-  // 🌟 NUEVO: Estados para manejar el Modal de Estado del Equipo
+
+  // Estados para manejar el Modal de Estado del Equipo
   const [statusModalVisible, setStatusModalVisible] = useState(false);
-  const [tempEquipoData, setTempEquipoData] = useState(null); // Guarda los datos temporales del escaneo
+  const [tempEquipoData, setTempEquipoData] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
-  // --- DETECCIÓN DE MODO OSCURO (Alineado con tu app) ---
+  // --- DETECCIÓN DE MODO OSCURO ---
   const colorScheme = useColorScheme();
   const isDarkMode = colorScheme === 'dark';
   const theme = {
@@ -1346,14 +1344,20 @@ function ScannerScreen({ route, navigation }) {
     subText: isDarkMode ? "#AAAAAA" : "#666666",
     border: isDarkMode ? "#444444" : "#DDDDDD",
   };
-  
-  // Cargamos el sonido de forma moderna y optimizada
+
   const player = useAudioPlayer('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
 
-  // Si aún no carga el estado de los permisos, mostramos pantalla vacía
+  // Cada vez que la pantalla vuelve a estar activa, se liberan los candados
+  useEffect(() => {
+    if (isFocused) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setScanned(false);
+      isProcessing.current = false;
+    }
+  }, [isFocused]);
+
   if (!permission) return <View style={styles.container} />;
-  
-  // Si el permiso fue denegado o no se ha pedido
+
   if (!permission.granted) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
@@ -1366,21 +1370,17 @@ function ScannerScreen({ route, navigation }) {
   }
 
   const handleBarCodeScanned = async ({ type, data }) => {
-    // Candado: Si ya estamos procesando un código, ignoramos los demás
-    if (isProcessing.current) return; 
+    if (isProcessing.current) return;
 
-    // Cerramos el candado e indicamos que ya se escaneó
     isProcessing.current = true;
     setScanned(true);
 
-    // EJECUTAMOS VIBRACIÓN Y SONIDO
-    Vibration.vibrate(100); 
-    player.play(); 
+    Vibration.vibrate(100);
+    player.play();
 
     // --- MODO AGREGAR PRODUCTO ---
     if (mode === "add") {
-      navigation.navigate("AddProduct", { scannedId: data });
-      isProcessing.current = false; 
+      navigation.replace("AddProduct", { scannedId: data });
       return;
     }
 
@@ -1392,81 +1392,87 @@ function ScannerScreen({ route, navigation }) {
           const docSnap = await getDoc(equipoRef);
           const nombreEquipo = docSnap.exists() ? docSnap.data().nombre : "Desconocido";
 
-          // 🌟 NUEVO: En lugar de guardar directo, abrimos el modal y guardamos los datos necesarios
           setTempEquipoData({
             ref: equipoRef,
             id: expectedId,
-            nombre: nombreEquipo
+            nombre: nombreEquipo,
           });
           setStatusModalVisible(true);
-
-        } catch (error) {
+        } catch {
           Alert.alert("Error", "No se pudo conectar con la base de datos.");
           setScanned(false);
           isProcessing.current = false;
         }
       } else {
-        Vibration.vibrate(); 
+        Vibration.vibrate();
         Alert.alert("⛔ Error", `El código escaneado no coincide con el equipo que intentas devolver.`, [
-          { 
-            text: "Reintentar", 
+          {
+            text: "Reintentar",
             onPress: () => {
               setScanned(false);
               isProcessing.current = false;
-            }
+            },
           },
         ]);
       }
     }
     // --- MODO BUSCAR NORMAL ---
     else {
-      const docSnap = await getDoc(doc(db, "Equipos", data));
-      if (docSnap.exists()) {
-        navigation.navigate("Detalles", {
-          item: { id: data, ...docSnap.data() },
-        });
-        setScanned(false);
-        isProcessing.current = false;
-      } else {
-        Alert.alert(
-          "⚠️ No encontrado",
-          `No existe un equipo en el inventario con el ID: ${data}`,
-          [{ 
-            text: "OK", 
+      try {
+        const docSnap = await getDoc(doc(db, "Equipos", data));
+        if (docSnap.exists()) {
+          navigation.replace("Detalles", {
+            item: { id: data, ...docSnap.data() },
+          });
+        } else {
+          Alert.alert(
+            "⚠️ No encontrado",
+            `No existe un equipo en el inventario con el ID: ${data}`,
+            [{
+              text: "OK",
+              onPress: () => {
+                setScanned(false);
+                isProcessing.current = false;
+              },
+            }],
+          );
+        }
+      } catch {
+        Alert.alert("Error", "No se pudo conectar con la base de datos.", [
+          {
+            text: "OK",
             onPress: () => {
               setScanned(false);
               isProcessing.current = false;
-            }
-          }],
-        );
+            },
+          },
+        ]);
       }
     }
   };
 
-  // 🌟 NUEVA FUNCIÓN: Ejecuta la actualización final en Firebase con el estado seleccionado
+  // Ejecuta la actualización final en Firebase con el estado seleccionado
   const procesarDevolucionConEstado = async (condicionFisica) => {
     if (!tempEquipoData) return;
     setGuardando(true);
 
     try {
-      // 1. Actualizar el equipo en Firebase
       await updateDoc(tempEquipoData.ref, {
         estado: "DISPONIBLE",
-        condicion_fisica: condicionFisica, // Guarda: "Buen estado", "Aceptable" o "Reemplazar"
+        condicion_fisica: condicionFisica,
         usuarioActual: userData?.nombre || "Usuario Móvil",
         alumno_nombre: "",
         alumno_matricula: "",
         poseedor_actual: "",
       });
 
-      // 2. Agregar al Historial con la observación del estado físico
       await addDoc(collection(db, "Historial"), {
         idEquipo: tempEquipoData.id,
         nombreEquipo: tempEquipoData.nombre,
         accion: "DEVOLUCIÓN",
         fecha: new Date(),
         admin: userData?.nombre || "Usuario Desconocido",
-        observaciones: `Devuelto escaneando QR. Condición física: ${condicionFisica} - Vía App Móvil 📱`
+        observaciones: `Devuelto escaneando QR. Condición física: ${condicionFisica} - Vía App Móvil 📱`,
       });
 
       setStatusModalVisible(false);
@@ -1477,29 +1483,29 @@ function ScannerScreen({ route, navigation }) {
           text: "Terminar",
           onPress: () => {
             isProcessing.current = false;
-            navigation.navigate("Detalles", { item: { id: tempEquipoData.id, nombre: tempEquipoData.nombre } });
             setTempEquipoData(null);
-          }
+            navigation.goBack();
+          },
         },
       ]);
-
-    } catch (error) {
+    } catch {
       setGuardando(false);
-      Alert.alert("Error", "No se pudo procesar la devolución.");
+      Alert.alert("Error", "No se pudo procesar la devolución. Intenta de nuevo.");
     }
   };
 
+  // ⬇️⬇️ ESTA PARTE ES LA QUE TE FALTABA ⬇️⬇️
   return (
     <View style={{ flex: 1, backgroundColor: "black" }}>
-      {/* --- CONDICIÓN isFocused para apagar cámara si no estamos en la pantalla --- */}
       {isFocused && (
         <CameraView
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
+          facing="back"
           onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
         />
       )}
-      
+
       <View style={styles.overlay}>
         <Text style={styles.overlayText}>
           {mode === "add"
@@ -1509,6 +1515,7 @@ function ScannerScreen({ route, navigation }) {
               : "Escanea un QR para buscar"}
         </Text>
       </View>
+
       <TouchableOpacity
         style={styles.closeButton}
         onPress={() => navigation.goBack()}
@@ -1516,13 +1523,13 @@ function ScannerScreen({ route, navigation }) {
         <Text style={{ color: "white", fontWeight: "bold" }}>Cancelar</Text>
       </TouchableOpacity>
 
-      {/* 🌟 NUEVO: MODAL PARA PREGUNTAR LA CONDICIÓN FÍSICA DEL EQUIPO */}
+      {/* MODAL PARA PREGUNTAR LA CONDICIÓN FÍSICA DEL EQUIPO */}
       <Modal animationType="fade" transparent={true} visible={statusModalVisible}>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.7)", padding: 20 }}>
           <View style={{ backgroundColor: theme.cardBg, width: "100%", borderRadius: 20, padding: 25, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 }}>
-            
+
             <Ionicons name="shield-checkmark" size={40} color={PRIMARY_COLOR} style={{ marginBottom: 10 }} />
-            
+
             <Text style={{ fontSize: 20, fontWeight: "bold", color: theme.text, marginBottom: 10, textAlign: "center" }}>Evaluación de Equipo</Text>
             <Text style={{ fontSize: 14, color: theme.subText, marginBottom: 20, textAlign: "center" }}>¿En qué estado físico se está devolviendo este equipo?</Text>
 
@@ -1530,9 +1537,9 @@ function ScannerScreen({ route, navigation }) {
               <ActivityIndicator size="large" color={PRIMARY_COLOR} style={{ marginVertical: 20 }} />
             ) : (
               <View style={{ width: "100%", gap: 12 }}>
-                
-                {/* OPCIÓN 1: BUEN ESTADO */}
-                <TouchableOpacity 
+
+                {/* BUEN ESTADO */}
+                <TouchableOpacity
                   style={{ width: "100%", backgroundColor: "#e8f5e9", borderWidth: 1, borderColor: "#4caf50", borderRadius: 12, padding: 15, flexDirection: "row", alignItems: "center" }}
                   onPress={() => procesarDevolucionConEstado("Buen estado")}
                 >
@@ -1540,8 +1547,8 @@ function ScannerScreen({ route, navigation }) {
                   <Text style={{ color: "#1b5e20", fontWeight: "bold", fontSize: 16 }}>Buen estado</Text>
                 </TouchableOpacity>
 
-                {/* OPCIÓN 2: ACEPTABLE */}
-                <TouchableOpacity 
+                {/* ACEPTABLE */}
+                <TouchableOpacity
                   style={{ width: "100%", backgroundColor: "#fff8e1", borderWidth: 1, borderColor: "#ffb300", borderRadius: 12, padding: 15, flexDirection: "row", alignItems: "center" }}
                   onPress={() => procesarDevolucionConEstado("Aceptable")}
                 >
@@ -1552,8 +1559,8 @@ function ScannerScreen({ route, navigation }) {
                   </View>
                 </TouchableOpacity>
 
-                {/* OPCIÓN 3: REEMPLAZAR */}
-                <TouchableOpacity 
+                {/* REEMPLAZAR */}
+                <TouchableOpacity
                   style={{ width: "100%", backgroundColor: "#ffebee", borderWidth: 1, borderColor: "#f44336", borderRadius: 12, padding: 15, flexDirection: "row", alignItems: "center" }}
                   onPress={() => procesarDevolucionConEstado("Reemplazar")}
                 >
@@ -1561,8 +1568,8 @@ function ScannerScreen({ route, navigation }) {
                   <Text style={{ color: "#c62828", fontWeight: "bold", fontSize: 16 }}>Reemplazar</Text>
                 </TouchableOpacity>
 
-                {/* BOTÓN CANCELAR TOTAL */}
-                <TouchableOpacity 
+                {/* CANCELAR DEVOLUCIÓN */}
+                <TouchableOpacity
                   style={{ width: "100%", marginTop: 10, padding: 12, alignItems: "center" }}
                   onPress={() => {
                     setStatusModalVisible(false);
@@ -1690,6 +1697,7 @@ function AddProductScreen({ navigation, route }) {
   }, []);
 
   // 2. ACTUALIZAR SUBCATEGORÍAS CUANDO CAMBIA CATEGORÍA
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!categoria || categoria === 'Otra') {
       setSubCatItems([{ label: '➕ Agregar otra subcategoría...', value: 'Otra' }]);
@@ -1701,7 +1709,7 @@ function AddProductScreen({ navigation, route }) {
     const subs = Object.keys(arbolCategorias[categoria] || {}).sort();
     const itemsSub = subs.map(s => ({ label: `📁 ${s}`, value: s }));
     itemsSub.push({ label: '➕ Agregar otra subcategoría...', value: 'Otra' });
-    
+
     setSubCatItems(itemsSub);
     setSubcategoria(null); setNuevaSubcategoria("");
     setNivel3(null); setNuevaNivel3("");
@@ -1718,10 +1726,11 @@ function AddProductScreen({ navigation, route }) {
     const n3s = arbolCategorias[categoria]?.[subcategoria] || [];
     const itemsN3 = n3s.map(s => ({ label: `📂 ${s}`, value: s }));
     itemsN3.push({ label: '➕ Agregar nueva sección...', value: 'Otra' });
-    
+
     setNivel3Items(itemsN3);
     setNivel3(null); setNuevaNivel3("");
   }, [subcategoria, categoria, arbolCategorias]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     const generarSiguienteId = async () => {
@@ -1735,7 +1744,9 @@ function AddProductScreen({ navigation, route }) {
           }
         });
         setIdQr(`EQ-${(maxNum + 1).toString().padStart(3, "0")}`);
-      } catch (error) { setIdQr("EQ-001"); }
+      } catch {
+        setIdQr("EQ-001");
+      }
     };
     generarSiguienteId();
   }, []);
@@ -1923,12 +1934,16 @@ function EditProductScreen({ route, navigation }) {
       } catch (error) { console.error("Error al cargar datos:", error); }
     };
     fetchCategorias();
-  }, []);
+  }, [item?.categoria]);
 
+  const itemCategoriaActual = String(item?.categoria || "").toUpperCase();
+  const itemSubcategoriaActual = String(item?.subcategoria || "").toUpperCase();
+
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!categoria || categoria === 'Otra') {
       setSubCatItems([{ label: '➕ Agregar otra subcategoría...', value: 'Otra' }]);
-      if (categoria !== item.categoria?.toUpperCase()) { setSubcategoria(null); setNivel3(null); }
+      if (categoria !== itemCategoriaActual) { setSubcategoria(null); setNivel3(null); }
       return;
     }
 
@@ -1940,12 +1955,12 @@ function EditProductScreen({ route, navigation }) {
     if (subcategoria && subcategoria !== "Otra" && !subs.includes(subcategoria)) {
         setSubcategoria(null); setNivel3(null);
     }
-  }, [categoria, arbolCategorias]);
+  }, [categoria, arbolCategorias, itemCategoriaActual, subcategoria]);
 
   useEffect(() => {
     if (!subcategoria || subcategoria === 'Otra' || !categoria || categoria === 'Otra') {
       setNivel3Items([{ label: '➕ Agregar nueva sección...', value: 'Otra' }]);
-      if (subcategoria !== item.subcategoria?.toUpperCase()) { setNivel3(null); }
+      if (subcategoria !== itemSubcategoriaActual) { setNivel3(null); }
       return;
     }
 
@@ -1957,7 +1972,8 @@ function EditProductScreen({ route, navigation }) {
     if (nivel3 && nivel3 !== "Otra" && !n3s.includes(nivel3)) {
         setNivel3(null);
     }
-  }, [subcategoria, categoria, arbolCategorias]);
+  }, [subcategoria, categoria, arbolCategorias, itemSubcategoriaActual, nivel3]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!item.id) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Error.</Text></View>;
 
@@ -2214,6 +2230,7 @@ export default function App() {
   );
 }
 registerRootComponent(App);
+
 
 // ==========================================
 // 8. ESTILOS
