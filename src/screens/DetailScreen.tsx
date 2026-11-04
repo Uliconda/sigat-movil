@@ -337,7 +337,8 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
         <LabeledInput
           label="Matrícula:"
           placeholder="Ej. 2314209"
-          keyboardType="numeric"
+          autoCapitalize="characters"
+          autoCorrect={false}
           value={matriculaAlumno}
           onChangeText={setMatriculaAlumno}
         />

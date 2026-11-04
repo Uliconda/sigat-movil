@@ -17,6 +17,13 @@ export interface ConteoCarpeta {
 
 type EquipoParaCarpetas = Pick<Equipo, "id" | "nombre" | "isTemplate" | CampoCarpeta>;
 
+// Campos en los que busca el inventario, además del nombre y el ID.
+const CAMPOS_BUSQUEDA = ["nombre", "id", "marca", "no_serie", "alumno_nombre", "alumno_matricula", "poseedor_actual"] as const;
+
+// Minúsculas y sin acentos, para que "camara" encuentre "Cámara".
+export const normalizarTexto = (texto: unknown): string =>
+  String(texto ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
 // Cuenta equipos reales por carpeta. `carpetasVacias` agrega carpetas que existen
 // aunque no tengan equipos (vienen de la tabla carpetas o de plantillas antiguas).
 export function contarPorCarpeta(
@@ -48,12 +55,18 @@ export const sinPlantillas = <T extends { isTemplate?: boolean }>(equipos: T[]):
 export const tieneCarpetasReales = (lista: ConteoCarpeta[]): boolean =>
   lista.some((carpeta) => carpeta.nombre !== CATEGORIA_GENERAL);
 
-// Busca por nombre o ID, sin distinguir mayúsculas. Excluye plantillas.
-export function buscarEquipos<T extends Partial<EquipoParaCarpetas>>(equipos: T[], texto: string): T[] {
-  const query = texto.trim().toLowerCase();
-  return sinPlantillas(equipos).filter((equipo) =>
-    equipo.nombre?.toLowerCase().includes(query) || equipo.id?.toLowerCase().includes(query)
-  );
+// Busca por nombre, ID, marca, número de serie o quién tiene el equipo, sin
+// distinguir mayúsculas ni acentos. Todas las palabras deben coincidir
+// ("laptop dell" encuentra "Laptop Dell Latitude"). Excluye plantillas.
+export function buscarEquipos<T extends Partial<EquipoParaCarpetas> & Record<string, unknown>>(
+  equipos: T[],
+  texto: string
+): T[] {
+  const palabras = normalizarTexto(texto).split(/\s+/).filter(Boolean);
+  return sinPlantillas(equipos).filter((equipo) => {
+    const contenido = CAMPOS_BUSQUEDA.map((campo) => normalizarTexto(equipo[campo])).join(" ");
+    return palabras.every((palabra) => contenido.includes(palabra));
+  });
 }
 
 // Árbol Categoría > Subcategoría > [Secciones] a partir de la tabla carpetas.

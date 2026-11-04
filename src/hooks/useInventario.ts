@@ -7,6 +7,7 @@ import {
   getCarpetasLocal,
   getEquipos,
   getEquiposLocal,
+  syncPendingChanges,
 } from "../services/supabaseData";
 import type { Carpeta, Equipo } from "../types";
 
@@ -24,6 +25,9 @@ export function useInventario() {
   const navigation = useNavigation();
   const [equipos, setEquipos] = useState<Equipo[]>([]);
   const [carpetas, setCarpetas] = useState<Carpeta[]>([]);
+  // Primera carga (sin datos en el teléfono todavía) y refresco manual.
+  const [cargando, setCargando] = useState(true);
+  const [refrescando, setRefrescando] = useState(false);
 
   const recargarCarpetas = useCallback(async () => {
     try {
@@ -40,8 +44,21 @@ export function useInventario() {
       setEquipos(listaEquipos);
     } catch (e) {
       console.log("Error cargando equipos:", e);
+    } finally {
+      setCargando(false);
     }
   }, [recargarCarpetas]);
+
+  // Deslizar hacia abajo: envía los cambios pendientes y vuelve a descargar.
+  const refrescar = useCallback(async () => {
+    setRefrescando(true);
+    try {
+      await syncPendingChanges().catch((e: unknown) => console.log("No se pudo sincronizar:", e));
+      await recargar();
+    } finally {
+      setRefrescando(false);
+    }
+  }, [recargar]);
 
   // Lectura instantánea desde el teléfono (caché + cambios pendientes), sin red.
   const recargarLocal = useCallback(
@@ -50,6 +67,8 @@ export function useInventario() {
         ([listaEquipos, listaCarpetas]) => {
           setEquipos(listaEquipos);
           setCarpetas(listaCarpetas);
+          // Si ya hay datos guardados se muestran sin esperar a la red.
+          if (listaEquipos.length > 0) setCargando(false);
         },
         (e) => console.log("Error cargando equipos locales:", e)
       ),
@@ -94,5 +113,5 @@ export function useInventario() {
     };
   }, [navigation, recargar, recargarCarpetas, recargarLocal]);
 
-  return { equipos, carpetas, recargar };
+  return { equipos, carpetas, recargar, cargando, refrescando, refrescar };
 }

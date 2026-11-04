@@ -7,12 +7,14 @@ import {
   type ListRenderItem,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { EmptyState } from "../components/EmptyState";
 import { EquipoCard } from "../components/EquipoCard";
 import { FolderCard } from "../components/FolderCard";
 import { FormModal } from "../components/FormModal";
@@ -59,7 +61,7 @@ export function InventoryScreen() {
   const { colors, isDarkMode } = useTheme();
   const puedeAdministrar = canManage(userData);
 
-  const { equipos, carpetas, recargar: cargarDatos } = useInventario();
+  const { equipos, carpetas, recargar: cargarDatos, cargando, refrescando, refrescar } = useInventario();
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
 
@@ -231,12 +233,52 @@ export function InventoryScreen() {
     );
   };
 
-  const listaEquipos = (key: string, data: Equipo[]) => (
-    <FlatList key={key} data={data} renderItem={renderEquipo} keyExtractor={(i) => i.id} contentContainerStyle={styles.listContent} />
+  // Deslizar hacia abajo en cualquier lista sincroniza y vuelve a descargar.
+  const refreshControl = (
+    <RefreshControl refreshing={refrescando} onRefresh={refrescar} colors={[colors.primary]} tintColor={colors.primary} />
+  );
+
+  // Mientras se descarga por primera vez se muestra la carga en lugar de "vacío".
+  const vacioOCargando = (vacio: ReactElement) =>
+    cargando ? <EmptyState loading title="Cargando inventario…" /> : vacio;
+
+  const carpetaVacia = (
+    <EmptyState
+      icon="file-tray-outline"
+      title="Esta carpeta está vacía"
+      message={puedeAdministrar ? "Agrega equipos con el botón +." : undefined}
+    />
+  );
+
+  const listaEquipos = (key: string, data: Equipo[], vacio: ReactElement = carpetaVacia) => (
+    <FlatList
+      key={key}
+      data={data}
+      renderItem={renderEquipo}
+      keyExtractor={(i) => i.id}
+      contentContainerStyle={styles.listContent}
+      refreshControl={refreshControl}
+      ListEmptyComponent={vacioOCargando(vacio)}
+      keyboardShouldPersistTaps="handled"
+    />
   );
 
   const listaCarpetas = (key: string, data: ConteoCarpeta[], renderItem: ListRenderItem<ConteoCarpeta>) => (
-    <FlatList key={key} data={data} renderItem={renderItem} keyExtractor={(i) => i.nombre} numColumns={2} contentContainerStyle={styles.listContent} />
+    <FlatList
+      key={key}
+      data={data}
+      renderItem={renderItem}
+      keyExtractor={(i) => i.nombre}
+      numColumns={2}
+      contentContainerStyle={styles.listContent}
+      refreshControl={refreshControl}
+      ListEmptyComponent={vacioOCargando(
+        <EmptyState
+          title="Aún no hay equipos"
+          message={puedeAdministrar ? "Registra el primero con el botón +." : "Desliza hacia abajo para actualizar."}
+        />
+      )}
+    />
   );
 
   const crear = (nivel: NivelCreacion) => (puedeAdministrar ? () => setCreationTargetLevel(nivel) : undefined);
@@ -253,7 +295,17 @@ export function InventoryScreen() {
 
   // Árbol de decisión: qué se muestra según la búsqueda y la carpeta seleccionada.
   const renderContenido = () => {
-    if (searchText !== "") return listaEquipos("lista-busqueda", filteredEquipos);
+    if (searchText.trim() !== "") {
+      return listaEquipos(
+        "lista-busqueda",
+        filteredEquipos,
+        <EmptyState
+          icon="search-outline"
+          title="Sin resultados"
+          message={`Nada coincide con "${searchText.trim()}". Puedes buscar por nombre, ID, marca, número de serie o persona.`}
+        />
+      );
+    }
 
     if (!selectedCategory) {
       return listaCarpetas("lista-cat-2col", listaCategorias, renderCategoria);
@@ -327,7 +379,9 @@ export function InventoryScreen() {
             <Ionicons name="search" size={20} color={colors.subText} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Buscar producto..."
+              placeholder="Nombre, ID, marca, serie o persona…"
+              returnKeyType="search"
+              autoCorrect={false}
               placeholderTextColor={colors.subText}
               value={searchText}
               onChangeText={setSearchText}

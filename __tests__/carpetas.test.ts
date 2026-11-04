@@ -96,6 +96,26 @@ describe("buscarEquipos", () => {
     expect(buscarEquipos(inventario, "eq-003").map((e) => e.id)).toEqual(["EQ-003"]);
   });
 
+  it("busca por marca, número de serie y quién tiene el equipo", () => {
+    const equipos = [
+      { id: "EQ-010", nombre: "Cámara", marca: "Canon", no_serie: "SN-77A" },
+      { id: "EQ-011", nombre: "Tripié", alumno_nombre: "Ana López", alumno_matricula: "A0231" },
+    ];
+    expect(buscarEquipos(equipos, "canon").map((e) => e.id)).toEqual(["EQ-010"]);
+    expect(buscarEquipos(equipos, "sn-77").map((e) => e.id)).toEqual(["EQ-010"]);
+    expect(buscarEquipos(equipos, "ana").map((e) => e.id)).toEqual(["EQ-011"]);
+    expect(buscarEquipos(equipos, "a0231").map((e) => e.id)).toEqual(["EQ-011"]);
+  });
+
+  it("ignora acentos y exige todas las palabras", () => {
+    const equipos = [
+      { id: "EQ-010", nombre: "Cámara Canon" },
+      { id: "EQ-012", nombre: "Cámara Sony" },
+    ];
+    expect(buscarEquipos(equipos, "camara").map((e) => e.id)).toEqual(["EQ-010", "EQ-012"]);
+    expect(buscarEquipos(equipos, "  CAMARA   sony ").map((e) => e.id)).toEqual(["EQ-012"]);
+  });
+
   it("nunca devuelve plantillas", () => {
     expect(buscarEquipos(inventario, "plantilla")).toEqual([]);
   });
