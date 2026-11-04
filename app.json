@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SigatRN",
+    "name": "SIGAT",
     "slug": "SigatRN",
     "version": "1.8.0",
     "orientation": "portrait",
@@ -8,7 +8,11 @@
     "scheme": "sigatrn",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "mx.cesba.sigat",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,11 +22,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": [
+      "package": "mx.cesba.sigat",
+      "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ],
-      "package": "SIGAT.prew"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "output": "single",
@@ -41,10 +46,25 @@
           }
         }
       ],
-      "expo-audio",
       "expo-font",
       "expo-status-bar",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SIGAT usa la cámara para escanear los códigos QR de los equipos.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true

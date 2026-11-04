@@ -38,6 +38,23 @@ cuenta tiene una contraseña temporal, la app pedirá cambiarla antes de cargar
 el inventario. El inventario se actualiza al entrar a la pantalla y también
 escucha cambios de Supabase Realtime.
 
+## Compilar con EAS
+
+`.env` no se sube a EAS (está en `.gitignore`), así que las variables deben
+registrarse en cada entorno una sola vez:
+
+```bash
+eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_URL --value "https://<project-ref>.supabase.co" --visibility plaintext
+eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY --value "<publishable-key>" --visibility plaintext
+# Repite con --environment production
+```
+
+- `eas build --profile preview --platform android`: APK para instalar directo.
+- `eas build --profile production`: AAB para Google Play / build para App Store.
+  El número de compilación se incrementa solo (`appVersionSource: remote`).
+
+Identificador de la app: `mx.cesba.sigat` (Android e iOS).
+
 ## Pruebas
 
 ```bash
