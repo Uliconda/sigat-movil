@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { PasswordInput } from "../components/PasswordInput";
 import { LabeledInput } from "../components/ThemedInput";
 import { supabase } from "../services/supabaseClient";
 import { styles } from "../theme/styles";
@@ -74,11 +75,9 @@ export function LoginScreen() {
               value={email}
               onChangeText={setEmail}
             />
-            <LabeledInput
+            <PasswordInput
               label="Contraseña"
               placeholder="********"
-              secureTextEntry
-              autoCapitalize="none"
               autoComplete="password"
               textContentType="password"
               value={password}

@@ -7,7 +7,7 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { ThemedInput } from "../components/ThemedInput";
+import { PasswordInput } from "../components/PasswordInput";
 import { getProfile } from "../services/supabaseData";
 import { supabase } from "../services/supabaseClient";
 import { styles } from "../theme/styles";
@@ -66,20 +66,16 @@ export function InitialPasswordScreen({ onComplete }: { onComplete: (perfil: Per
       <Text style={{ color: colors.subText, marginBottom: 20 }}>
         Debes reemplazar tu contraseña temporal por una nueva de al menos {MIN_PASSWORD_LENGTH} caracteres.
       </Text>
-      <ThemedInput
+      <PasswordInput
         value={password}
         onChangeText={setPassword}
         placeholder="Nueva contraseña"
-        secureTextEntry
-        autoCapitalize="none"
         textContentType="newPassword"
       />
-      <ThemedInput
+      <PasswordInput
         value={confirmation}
         onChangeText={setConfirmation}
         placeholder="Confirmar contraseña"
-        secureTextEntry
-        autoCapitalize="none"
         textContentType="newPassword"
       />
       <TouchableOpacity disabled={loading} onPress={changePassword} style={styles.bigOrangeButton}>
