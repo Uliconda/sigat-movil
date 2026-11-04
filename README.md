@@ -40,14 +40,20 @@ escucha cambios de Supabase Realtime.
 
 ## Compilar con EAS
 
-`.env` no se sube a EAS (está en `.gitignore`), así que las variables deben
-registrarse en cada entorno una sola vez:
+`.env` no se sube a EAS (está en `.gitignore`), así que sus variables deben
+registrarse en cada entorno. Este comando sube los valores reales de tu `.env`:
 
 ```bash
-eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_URL --value "https://<project-ref>.supabase.co" --visibility plaintext
-eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY --value "<publishable-key>" --visibility plaintext
-# Repite con --environment production
+eas env:push --environment preview --path .env --force
+eas env:push --environment production --path .env --force
+eas env:list --environment preview   # comprobar
 ```
+
+Antes de compilar, EAS ejecuta `npm run check-env` (script
+`eas-build-pre-install`): si faltan las variables o tienen valores de ejemplo,
+la compilación se detiene con un mensaje claro en lugar de generar una APK que
+se cierra al abrir. Si aun así se instala una versión sin configuración, la app
+muestra una pantalla de "Configuración incompleta" en lugar de cerrarse.
 
 - `eas build --profile preview --platform android`: APK para instalar directo.
 - `eas build --profile production`: AAB para Google Play / build para App Store.

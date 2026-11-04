@@ -9,7 +9,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check-env": "node scripts/check-env.js",
+    "eas-build-pre-install": "node scripts/check-env.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
