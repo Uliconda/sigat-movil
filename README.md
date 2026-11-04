@@ -55,31 +55,35 @@ eas env:create --environment preview --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
 Identificador de la app: `mx.cesba.sigat` (Android e iOS).
 
-## Pruebas
+## Pruebas y calidad
 
 ```bash
-npm test
+npm test            # pruebas con Jest
+npm run typecheck   # TypeScript en modo estricto
+npm run lint        # ESLint
 ```
 
 Las pruebas cubren la cola de cambios sin conexión (altas, préstamos,
 sincronización, conflictos y su resolución) contra un Supabase simulado en
-memoria (`test/fakeSupabase.js`), además de las reglas de estados, roles y
+memoria (`test/fakeSupabase.ts`), además de las reglas de estados, roles y
 carpetas.
 
 ## Estructura
 
 ```
-App.js              Arranque: sesión, perfil y navegación
+index.ts            Punto de entrada
+App.tsx             Sesión, perfil y navegación
 src/
   screens/          Una pantalla por archivo (Inventario, Detalle, Escáner, ...)
   components/       Piezas reutilizables (ProductForm, FormModal, EquipoCard, ...)
   navigation/       Menú lateral y pila de pantallas
-  services/         Supabase y modo sin conexión (offlineQueue.js es lógica pura)
+  services/         Supabase y modo sin conexión (offlineQueue.ts es lógica pura)
   constants/        Estados, condiciones, roles y categorías
   utils/            Conteo y árbol de carpetas, búsqueda
-  hooks/            useCategoryTree
+  hooks/            useInventario (datos + tiempo real), useCategoryTree
   theme/            Colores claro/oscuro, useTheme() y estilos compartidos
   context/          AuthContext (usuario y perfil)
+  types.ts          Tipos del dominio: Equipo, Carpeta, Perfil, cola sin conexión, rutas
 __tests__/          Pruebas con Jest (jest-expo)
 ```
 
