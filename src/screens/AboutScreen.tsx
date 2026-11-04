@@ -1,9 +1,54 @@
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useEffect, useState } from "react";
 import { ScrollView, type StyleProp, Text, type TextStyle, View } from "react-native";
+import { getEstadoInfo } from "../constants/estados";
+import { getCarpetasLocal, getEquiposLocal } from "../services/supabaseData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
+import { buildInventoryTree, sinPlantillas } from "../utils/carpetas";
+
+interface Estadisticas {
+  equipos: number;
+  categorias: number;
+  prestados: number;
+}
+
+// Cifras reales del inventario guardado en el teléfono (no requiere conexión).
+function useEstadisticas(): Estadisticas | null {
+  const [estadisticas, setEstadisticas] = useState<Estadisticas | null>(null);
+  useEffect(() => {
+    let active = true;
+    Promise.all([getEquiposLocal(), getCarpetasLocal()])
+      .then(([equipos, carpetas]) => {
+        if (!active) return;
+        const reales = sinPlantillas(equipos);
+        setEstadisticas({
+          equipos: reales.length,
+          categorias: Object.keys(buildInventoryTree(carpetas, reales)).length,
+          prestados: reales.filter((e) => {
+            const info = getEstadoInfo(e.estado);
+            return info.isPrestado || info.isNoResponde;
+          }).length,
+        });
+      })
+      .catch((error: unknown) => console.log("No se pudieron calcular las estadísticas:", error));
+    return () => {
+      active = false;
+    };
+  }, []);
+  return estadisticas;
+}
+
+function Stat({ value, label }: { value: number; label: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, alignItems: "center" }} accessible accessibilityLabel={`${value} ${label}`}>
+      <Text style={{ color: colors.primary, fontSize: 26, fontWeight: "bold" }}>{value.toLocaleString("es-MX")}</Text>
+      <Text style={{ color: colors.subText, fontSize: 12, textAlign: "center" }}>{label}</Text>
+    </View>
+  );
+}
 
 function InfoCard({ icon, title, children }: { icon: ComponentProps<typeof Ionicons>["name"]; title: string; children: ReactNode }) {
   const { colors } = useTheme();
@@ -35,6 +80,7 @@ function InfoField({ label, value, valueStyle }: { label: string; value: string;
 
 export function AboutScreen() {
   const { colors } = useTheme();
+  const estadisticas = useEstadisticas();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -68,21 +114,40 @@ export function AboutScreen() {
           </Text>
         </View>
 
-        <InfoCard icon="school" title="Proyecto de Titulación">
-          <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22, textAlign: "justify" }}>
-            Este sistema fue desarrollado como proyecto oficial para la obtención del título profesional.
-            Su propósito principal es optimizar el control, rastreo y gestión de activos físicos mediante
-            el uso de tecnología de códigos QR, asegurando la integridad y disponibilidad de la información en tiempo real.
+        <InfoCard icon="business" title="Sistema de Gestión de Activos">
+          <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22 }}>
+            SIGAT es el sistema con el que CESBA controla su inventario de equipo: registro de activos,
+            préstamos y devoluciones mediante códigos QR, y evaluación del estado físico de cada equipo
+            al recibirlo.
+          </Text>
+          <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22, marginTop: 10 }}>
+            La app funciona sin conexión y se sincroniza en tiempo real con SIGAT Web, el panel de
+            administración y reportes.
           </Text>
           <View style={{ height: 10 }} />
-          <InfoField label="Institución:" value="Centro de Estudios Superiores del Bajio Qro. (CESBA)" />
-          <InfoField label="Carrera:" value="Ingeniería en Sistemas Computacionales" />
+          <InfoField label="Institución:" value="Centro de Estudios Superiores del Bajío Qro. (CESBA)" />
+
+          {estadisticas && (
+            <View
+              style={{
+                flexDirection: "row",
+                marginTop: 10,
+                paddingTop: 15,
+                borderTopWidth: 1,
+                borderTopColor: colors.divider,
+              }}
+            >
+              <Stat value={estadisticas.equipos} label="equipos registrados" />
+              <Stat value={estadisticas.categorias} label="categorías" />
+              <Stat value={estadisticas.prestados} label="en préstamo ahora" />
+            </View>
+          )}
         </InfoCard>
 
         <InfoCard icon="code-slash" title="Desarrollador">
           <InfoField label="Autor:" value="Ing. Ulises González Hernández" valueStyle={{ fontSize: 18, fontWeight: "bold" }} />
           <InfoField label="Contacto:" value="ulises.dev.hdz@gmail.com" valueStyle={{ fontWeight: "normal" }} />
-          <InfoField label="Tecnologías Principales:" value="React Native • Supabase • Expo" valueStyle={{ fontSize: 14, fontWeight: "normal" }} />
+          <InfoField label="Tecnologías Principales:" value="React Native • TypeScript • Expo • Supabase (PostgreSQL)" valueStyle={{ fontSize: 14, fontWeight: "normal" }} />
         </InfoCard>
 
         <View style={{ alignItems: "center", marginTop: 10, marginBottom: 20 }}>
