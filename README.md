@@ -1,50 +1,82 @@
-# Welcome to your Expo app 👋
+# SIGAT RN
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+La aplicación móvil comparte Supabase Auth y la base PostgreSQL con SIGAT Web.
+Firebase ya no se usa como base activa en esta app.
 
-## Get started
+## Configuración local
 
-1. Install dependencies
+`.env` debe contener la URL del mismo proyecto Supabase y la clave publicable:
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```dotenv
+EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+No uses la clave `service_role` o una clave `secret` en la app móvil. Las
+variables `EXPO_PUBLIC_*` se incluyen en el cliente y solo deben tener la clave
+publishable. `.env` está excluido de Git.
 
-## Learn more
+## Preparar el proyecto Supabase
 
-To learn more about developing your project with Expo, look at the following resources:
+Ejecuta en SQL Editor el contenido completo y actualizado de
+[`../sigat-web/supabase/migrations/20261020000000_initial_schema.sql`](../sigat-web/supabase/migrations/20261020000000_initial_schema.sql).
+El SQL permite a usuarios autenticados consultar el inventario y registrar
+préstamos/devoluciones, mientras limita las operaciones administrativas a los
+roles autorizados. La versión actual también incluye funciones para sincronizar
+cambios offline con control de conflictos; aplícala antes de usar esta versión
+de la app.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Ejecutar
 
-## Join the community
+```bash
+npm install
+npx expo start -c
+```
 
-Join our community of developers creating universal apps.
+Inicia sesión con el correo y la contraseña vigentes de Supabase Auth. Si la
+cuenta tiene una contraseña temporal, la app pedirá cambiarla antes de cargar
+el inventario. El inventario se actualiza al entrar a la pantalla y también
+escucha cambios de Supabase Realtime.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Pruebas
+
+```bash
+npm test
+```
+
+Las pruebas cubren la cola de cambios sin conexión (altas, préstamos,
+sincronización, conflictos y su resolución) contra un Supabase simulado en
+memoria (`test/fakeSupabase.js`), además de las reglas de estados, roles y
+carpetas.
+
+## Estructura
+
+```
+App.js              Arranque: sesión, perfil y navegación
+src/
+  screens/          Una pantalla por archivo (Inventario, Detalle, Escáner, ...)
+  components/       Piezas reutilizables (ProductForm, FormModal, EquipoCard, ...)
+  navigation/       Menú lateral y pila de pantallas
+  services/         Supabase y modo sin conexión (offlineQueue.js es lógica pura)
+  constants/        Estados, condiciones, roles y categorías
+  utils/            Conteo y árbol de carpetas, búsqueda
+  hooks/            useCategoryTree
+  theme/            Colores claro/oscuro, useTheme() y estilos compartidos
+  context/          AuthContext (usuario y perfil)
+__tests__/          Pruebas con Jest (jest-expo)
+```
+
+## Uso sin conexión
+
+Inicia sesión y deja que el inventario cargue al menos una vez mientras hay
+conexión. Después, la app conserva el inventario y el perfil de esa cuenta en
+el almacenamiento local del teléfono. Préstamos, devoluciones, altas, cambios y
+bajas se guardan localmente y se envían en cuanto Supabase vuelve a estar
+accesible; no basta con que el teléfono tenga internet si el servidor de base de
+datos sigue apagado.
+
+La franja superior indica si hay cambios pendientes o conflictos. Si otro
+dispositivo modifica el mismo equipo antes de sincronizar, la app conserva el
+cambio local y pide elegir entre aplicar los cambios locales o conservar los de
+Supabase. Los datos offline permanecen en el almacenamiento privado de la app;
+cerrar sesión no permite iniciar sesión de nuevo sin conexión.

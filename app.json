@@ -43,17 +43,13 @@
       ],
       "expo-audio",
       "expo-font",
-      "expo-image",
       "expo-status-bar",
-      "expo-web-browser",
       "expo-asset"
     ],
     "experiments": {
-      "typedRoutes": false,
       "reactCompiler": true
     },
     "extra": {
-      "router": {},
       "eas": {
         "projectId": "b1f75cc1-a3df-462e-848e-a5a2d8b1c082"
       }
