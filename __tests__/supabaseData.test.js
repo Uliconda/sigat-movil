@@ -165,6 +165,36 @@ describe("tiempo real", () => {
   });
 });
 
+describe("carpetas", () => {
+  beforeEach(() => {
+    mockDb.carpetas = [
+      { id: "c-1", parent_id: null, nombre: "CÓMPUTO", nivel: 1 },
+      { id: "c-2", parent_id: "c-1", nombre: "LAPTOPS", nivel: 2 },
+    ];
+  });
+
+  it("guarda las carpetas para consultarlas sin conexión", async () => {
+    await data.getCarpetas();
+    mockDb.online = false;
+    expect((await data.getCarpetas()).map((c) => c.nombre)).toEqual(["CÓMPUTO", "LAPTOPS"]);
+  });
+
+  it("crea una carpeta en el servidor y actualiza la caché", async () => {
+    await data.crearCarpeta("c-1", "Monitores");
+    expect((await data.getCarpetasLocal()).map((c) => c.nombre)).toContain("MONITORES");
+  });
+
+  it("muestra el mensaje del servidor si la carpeta ya existe", async () => {
+    await expect(data.crearCarpeta("c-1", "laptops")).rejects.toThrow('Ya existe una carpeta "LAPTOPS"');
+  });
+
+  it("pide conexión para administrar carpetas", async () => {
+    mockDb.online = false;
+    await expect(data.crearCarpeta("c-1", "Monitores")).rejects.toThrow("Necesitas conexión");
+    expect(mockDb.carpetas).toHaveLength(2);
+  });
+});
+
 describe("getNextEquipoId", () => {
   it("reserva el ID en Supabase cuando hay conexión", async () => {
     expect(await data.getNextEquipoId()).toEqual({ id: "EQ-043", provisional: false });

@@ -1,9 +1,53 @@
 import {
+  buildCarpetasTree,
   buildCategoryTree,
+  buildInventoryTree,
   buscarEquipos,
   contarPorCarpeta,
+  findCarpetaId,
+  mergeTrees,
   tieneCarpetasReales,
 } from "../src/utils/carpetas";
+
+const carpetas = [
+  { id: "c1", parent_id: null, nombre: "CÓMPUTO", nivel: 1 },
+  { id: "c2", parent_id: "c1", nombre: "LAPTOPS", nivel: 2 },
+  { id: "c3", parent_id: "c2", nombre: "DELL", nivel: 3 },
+  { id: "c4", parent_id: "c1", nombre: "IMPRESORAS", nivel: 2 },
+  { id: "c5", parent_id: null, nombre: "MOBILIARIO", nivel: 1 },
+];
+
+describe("tabla carpetas", () => {
+  it("construye el árbol, incluidas las carpetas vacías", () => {
+    expect(buildCarpetasTree(carpetas)).toEqual({
+      "CÓMPUTO": { LAPTOPS: ["DELL"], IMPRESORAS: [] },
+      MOBILIARIO: {},
+    });
+  });
+
+  it("une el árbol del servidor con el de los equipos sin repetir", () => {
+    expect(mergeTrees({ A: { X: ["1"] } }, { A: { X: ["1", "2"], Y: [] }, B: {} })).toEqual({
+      A: { X: ["1", "2"], Y: [] },
+      B: {},
+    });
+  });
+
+  it("incluye carpetas de equipos creados sin conexión", () => {
+    const tree = buildInventoryTree(carpetas, [{ id: "EQ-9", categoria: "Redes", subcategoria: "Switches" }]);
+    expect(tree.REDES).toEqual({ SWITCHES: ["GENERAL"] });
+    expect(tree["CÓMPUTO"].IMPRESORAS).toEqual([]);
+  });
+
+  it("encuentra el ID de una carpeta por su ruta", () => {
+    expect(findCarpetaId(carpetas, ["Cómputo", "laptops", "Dell"])).toBe("c3");
+    expect(findCarpetaId(carpetas, ["CÓMPUTO"])).toBe("c1");
+    expect(findCarpetaId(carpetas, ["CÓMPUTO", "MONITORES"])).toBeNull();
+  });
+
+  it("cuenta en cero las carpetas vacías", () => {
+    expect(contarPorCarpeta([], "categoria", ["MOBILIARIO"])).toEqual([{ nombre: "MOBILIARIO", cantidad: 0 }]);
+  });
+});
 
 const inventario = [
   { id: "EQ-001", nombre: "Laptop Dell", categoria: "Cómputo", subcategoria: "Laptops", subSubcategoria: "Dell" },

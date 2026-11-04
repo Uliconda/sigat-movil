@@ -5,14 +5,15 @@ const { sameData } = require("../src/services/offlineQueue");
 const clone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
 
 function createFakeDb() {
-  return { online: true, equipos: new Map(), historial: [], nextEquipoNumber: 1 };
+  return { online: true, equipos: new Map(), historial: [], carpetas: [], nextEquipoNumber: 1 };
 }
 
 function createFakeSupabase(db) {
-  const rowsOf = (table) =>
-    table === "equipos"
-      ? [...db.equipos.entries()].map(([id, data]) => ({ id, data }))
-      : db.historial;
+  const rowsOf = (table) => {
+    if (table === "equipos") return [...db.equipos.entries()].map(([id, data]) => ({ id, data }));
+    if (table === "carpetas") return db.carpetas;
+    return db.historial;
+  };
 
   return {
     auth: {
@@ -65,6 +66,16 @@ function createFakeSupabase(db) {
         if (!current || !sameData(current, args.p_expected_data)) return { data: false, error: null };
         db.equipos.delete(args.p_id);
         return { data: true, error: null };
+      }
+      if (name === "crear_carpeta") {
+        const nombre = args.p_nombre.trim().toUpperCase();
+        const padre = db.carpetas.find((c) => c.id === args.p_parent_id);
+        if (db.carpetas.some((c) => c.parent_id === (args.p_parent_id ?? null) && c.nombre === nombre)) {
+          return { data: null, error: { code: "23505", message: `Ya existe una carpeta "${nombre}" en este nivel.` } };
+        }
+        const id = `c-${db.carpetas.length + 1}`;
+        db.carpetas.push({ id, parent_id: args.p_parent_id ?? null, nombre, nivel: padre ? padre.nivel + 1 : 1 });
+        return { data: id, error: null };
       }
       if (name === "next_equipo_id") {
         const id = `EQ-${String(db.nextEquipoNumber++).padStart(3, "0")}`;

@@ -183,6 +183,62 @@ export async function getNextEquipoId() {
   }
 }
 
+// ==========================================
+// CARPETAS (Categoría > Subcategoría > Sección)
+// ==========================================
+
+// La tabla aún no existe en la base (falta ejecutar el SQL actualizado).
+const isMissingTable = (error) => error?.code === "PGRST205" || error?.code === "42P01";
+
+export async function getCarpetasLocal() {
+  const userId = await getUserId();
+  return readJson(storageKey(userId, "carpetas"), []);
+}
+
+// Carpetas desde Supabase (con respaldo en caché si no hay conexión).
+export async function getCarpetas() {
+  const userId = await getUserId();
+  try {
+    const network = await NetInfo.fetch();
+    if (network.isConnected === false) throw new OfflineError();
+    const { data, error } = await supabase.from("carpetas").select("id, parent_id, nombre, nivel");
+    if (error) throw error;
+    await AsyncStorage.setItem(storageKey(userId, "carpetas"), JSON.stringify(data));
+    return data;
+  } catch (error) {
+    if (isMissingTable(error)) {
+      console.warn("Falta la tabla carpetas en Supabase; se usan solo las carpetas de los equipos.");
+      return [];
+    }
+    if (!isNetworkError(error)) throw error;
+    return getCarpetasLocal();
+  }
+}
+
+// Crear, renombrar y eliminar carpetas cambian muchos equipos a la vez en el
+// servidor, así que requieren conexión.
+async function carpetaRpc(nombreFuncion, params) {
+  const network = await NetInfo.fetch();
+  if (network.isConnected === false) {
+    throw new Error("Necesitas conexión para administrar carpetas.");
+  }
+  const { data, error } = await supabase.rpc(nombreFuncion, params);
+  if (error) {
+    if (isNetworkError(error)) throw new Error("Necesitas conexión para administrar carpetas.");
+    throw new Error(error.message || "No se pudo actualizar la carpeta.");
+  }
+  await getCarpetas();
+  return data;
+}
+
+export const crearCarpeta = (parentId, nombre) =>
+  carpetaRpc("crear_carpeta", { p_parent_id: parentId, p_nombre: nombre });
+
+export const renombrarCarpeta = (id, nombre) =>
+  carpetaRpc("renombrar_carpeta", { p_id: id, p_nombre: nombre });
+
+export const eliminarCarpeta = (id) => carpetaRpc("eliminar_carpeta", { p_id: id });
+
 async function enqueue(operation) {
   return serializeQueueMutation(async () => {
     const userId = await getUserId();

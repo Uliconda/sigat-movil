@@ -7,10 +7,13 @@ export const CAMPO_CARPETA = {
   seccion: "subSubcategoria",
 };
 
-// Cuenta equipos reales por carpeta. Las plantillas no suman, pero hacen que la
-// carpeta exista aunque esté vacía.
-export function contarPorCarpeta(equipos, campo) {
+// Cuenta equipos reales por carpeta. `carpetasVacias` agrega carpetas que existen
+// aunque no tengan equipos (vienen de la tabla carpetas o de plantillas antiguas).
+export function contarPorCarpeta(equipos, campo, carpetasVacias = []) {
   const conteo = {};
+  carpetasVacias.forEach((nombre) => {
+    conteo[normalizarCarpeta(nombre)] ??= 0;
+  });
   equipos.forEach((equipo) => {
     const carpeta = normalizarCarpeta(equipo[campo]);
     conteo[carpeta] ??= 0;
@@ -36,8 +39,68 @@ export function buscarEquipos(equipos, texto) {
   );
 }
 
-// Construye el árbol Categoría > Subcategoría > [Secciones] a partir del inventario
-// (incluye las carpetas vacías, que existen como plantillas).
+// Árbol Categoría > Subcategoría > [Secciones] a partir de la tabla carpetas.
+export function buildCarpetasTree(carpetas) {
+  const porId = new Map(carpetas.map((carpeta) => [carpeta.id, carpeta]));
+  const tree = {};
+  const nivel = (n) => carpetas.filter((carpeta) => carpeta.nivel === n);
+
+  nivel(1).forEach((cat) => {
+    tree[cat.nombre] ??= {};
+  });
+  nivel(2).forEach((sub) => {
+    const cat = porId.get(sub.parent_id);
+    if (!cat) return;
+    tree[cat.nombre] ??= {};
+    tree[cat.nombre][sub.nombre] ??= [];
+  });
+  nivel(3).forEach((sec) => {
+    const sub = porId.get(sec.parent_id);
+    const cat = sub && porId.get(sub.parent_id);
+    if (!cat) return;
+    tree[cat.nombre] ??= {};
+    tree[cat.nombre][sub.nombre] ??= [];
+    tree[cat.nombre][sub.nombre].push(sec.nombre);
+  });
+
+  Object.values(tree).forEach((subs) => Object.values(subs).forEach((secciones) => secciones.sort()));
+  return tree;
+}
+
+// Une dos árboles de carpetas sin repetir nombres.
+export function mergeTrees(...trees) {
+  const result = {};
+  trees.forEach((tree) => {
+    Object.entries(tree).forEach(([cat, subs]) => {
+      result[cat] ??= {};
+      Object.entries(subs).forEach(([sub, secciones]) => {
+        result[cat][sub] = [...new Set([...(result[cat][sub] ?? []), ...secciones])].sort();
+      });
+    });
+  });
+  return result;
+}
+
+// Busca el ID de una carpeta por su ruta, p. ej. ["CÓMPUTO", "LAPTOPS"].
+export function findCarpetaId(carpetas, ruta) {
+  let parentId = null;
+  let encontrada = null;
+  for (const nombre of ruta) {
+    const normalizado = normalizarCarpeta(nombre);
+    encontrada = carpetas.find((c) => (c.parent_id ?? null) === parentId && c.nombre === normalizado);
+    if (!encontrada) return null;
+    parentId = encontrada.id;
+  }
+  return encontrada?.id ?? null;
+}
+
+// Árbol completo: carpetas del servidor + las que usan los equipos (incluye
+// equipos creados sin conexión que aún no se sincronizan).
+export function buildInventoryTree(carpetas, equipos) {
+  return mergeTrees(buildCarpetasTree(carpetas), buildCategoryTree(equipos));
+}
+
+// Construye el árbol Categoría > Subcategoría > [Secciones] a partir del inventario.
 export function buildCategoryTree(equipos) {
   const tree = {};
   equipos.forEach((equipo) => {

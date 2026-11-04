@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { getEquipos } from "../services/supabaseData";
-import { buildCategoryTree } from "../utils/carpetas";
+import { getCarpetas, getEquipos } from "../services/supabaseData";
+import { buildInventoryTree } from "../utils/carpetas";
 
 // Árbol de carpetas para los selectores de los formularios.
 export function useCategoryTree() {
@@ -8,9 +8,9 @@ export function useCategoryTree() {
 
   useEffect(() => {
     let active = true;
-    getEquipos()
-      .then((equipos) => {
-        if (active) setTree(buildCategoryTree(equipos));
+    Promise.all([getCarpetas(), getEquipos()])
+      .then(([carpetas, equipos]) => {
+        if (active) setTree(buildInventoryTree(carpetas, equipos));
       })
       .catch((error) => console.error("Error al cargar categorías:", error));
     return () => {

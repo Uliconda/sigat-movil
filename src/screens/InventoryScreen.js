@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   FlatList,
@@ -20,21 +20,17 @@ import { ThemedInput } from "../components/ThemedInput";
 import { CATEGORIA_GENERAL, getCategoriaConfig, normalizarCarpeta } from "../constants/categorias";
 import { canManage } from "../constants/roles";
 import { useAuth } from "../context/AuthContext";
-import { supabase } from "../services/supabaseClient";
-import {
-  applyRemoteChange,
-  createEquipo,
-  getEquipos,
-  getEquiposLocal,
-  updateEquipo,
-} from "../services/supabaseData";
+import { useInventario } from "../hooks/useInventario";
+import { crearCarpeta, eliminarCarpeta, renombrarCarpeta } from "../services/supabaseData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
 import {
+  buildInventoryTree,
   buscarEquipos,
   CAMPO_CARPETA as CAMPO,
   contarPorCarpeta,
   enCarpeta,
+  findCarpetaId,
   sinPlantillas,
   tieneCarpetasReales,
 } from "../utils/carpetas";
@@ -51,7 +47,7 @@ export function InventoryScreen() {
   const { colors, isDarkMode } = useTheme();
   const puedeAdministrar = canManage(userData);
 
-  const [equipos, setEquipos] = useState([]);
+  const { equipos, carpetas, recargar: cargarDatos } = useInventario();
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchText, setSearchText] = useState("");
 
@@ -65,85 +61,22 @@ export function InventoryScreen() {
   const [creationTargetLevel, setCreationTargetLevel] = useState(null); // "subcategoria" | "nivel3"
   const [newFolderName, setNewFolderName] = useState("");
 
-  // Descarga completa desde Supabase (con respaldo en caché si no hay conexión).
-  const cargarDatos = async () => {
-    try {
-      setEquipos(await getEquipos());
-    } catch (e) {
-      console.log("Error cargando equipos:", e);
-    }
-  };
-
-  // Lectura instantánea desde el teléfono (caché + cambios pendientes), sin red.
-  const cargarDatosLocales = async () => {
-    try {
-      setEquipos(await getEquiposLocal());
-    } catch (e) {
-      console.log("Error cargando equipos locales:", e);
-    }
-  };
-
-  useEffect(() => {
-    let active = true;
-    // Muestra de inmediato lo que hay en el teléfono; la descarga completa se hace
-    // cuando el canal en tiempo real queda conectado (y en cada reconexión).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    cargarDatosLocales();
-    const unsubscribe = navigation.addListener("focus", () => cargarDatosLocales());
-
-    const channel = supabase
-      .channel(`mobile-equipos-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "equipos" },
-        async (payload) => {
-          try {
-            const row = payload.eventType === "DELETE" ? payload.old : payload.new;
-            const { id, equipo } = await applyRemoteChange(payload.eventType, row);
-            if (!active || !id) return;
-            setEquipos((prev) => {
-              if (!equipo) return prev.filter((item) => item.id !== id);
-              const exists = prev.some((item) => item.id === id);
-              return exists
-                ? prev.map((item) => (item.id === id ? equipo : item))
-                : [...prev, equipo];
-            });
-          } catch (error) {
-            console.error("No se pudo aplicar un cambio en tiempo real:", error);
-            if (active) void cargarDatos();
-          }
-        }
-      )
-      .subscribe((status, error) => {
-        if (status === "SUBSCRIBED") {
-          if (active) void cargarDatos();
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          console.error("Error en cambios de inventario en tiempo real:", error);
-          // Sin tiempo real, al menos se descarga el inventario una vez.
-          if (active) void cargarDatos();
-        }
-      });
-
-    return () => {
-      active = false;
-      unsubscribe();
-      void supabase.removeChannel(channel);
-    };
-  }, [navigation]);
-
   // ==========================================
   // DATOS DE CADA NIVEL
   // ==========================================
   const filteredEquipos = buscarEquipos(equipos, searchText);
 
-  const listaCategorias = contarPorCarpeta(equipos, CAMPO.categoria);
+  // Carpetas del servidor + las que usan los equipos (aunque aún no se sincronicen).
+  const tree = buildInventoryTree(carpetas, equipos);
+
+  const listaCategorias = contarPorCarpeta(equipos, CAMPO.categoria, Object.keys(tree));
 
   const equiposNivel2 = equipos.filter(enCarpeta(CAMPO.categoria, selectedCategory));
-  const listaSubcategorias = contarPorCarpeta(equiposNivel2, CAMPO.subcategoria);
+  const listaSubcategorias = contarPorCarpeta(equiposNivel2, CAMPO.subcategoria, Object.keys(tree[selectedCategory] ?? {}));
   const tieneSubcategoriasReales = tieneCarpetasReales(listaSubcategorias);
 
   const equiposNivel3 = equiposNivel2.filter(enCarpeta(CAMPO.subcategoria, selectedSubcategory));
-  const listaNivel3 = contarPorCarpeta(equiposNivel3, CAMPO.seccion);
+  const listaNivel3 = contarPorCarpeta(equiposNivel3, CAMPO.seccion, tree[selectedCategory]?.[selectedSubcategory] ?? []);
   const tieneNivel3Real = tieneCarpetasReales(listaNivel3);
 
   const equiposFinales = sinPlantillas(equiposNivel3.filter(enCarpeta(CAMPO.seccion, selectedNivel3)));
@@ -160,48 +93,64 @@ export function InventoryScreen() {
     ]);
   };
 
-  const handleEliminarConfirmacion = (tipo, nombreActual) => {
-    Alert.alert("⚠️ Confirmar Eliminación", `¿Seguro que deseas eliminar "${nombreActual}"?\n\nLos equipos serán reasignados a "General".`, [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Sí, Eliminar", style: "destructive", onPress: () => procesarAccionEquipo(tipo, nombreActual, "General") },
-    ]);
+  // Ruta completa de una carpeta según su tipo y la navegación actual.
+  const rutaDe = (tipo, nombre) => {
+    if (tipo === TIPO.categoria) return [nombre];
+    if (tipo === TIPO.subcategoria) return [selectedCategory, nombre];
+    return [selectedCategory, selectedSubcategory, nombre];
   };
 
-  // ¿El equipo pertenece a la carpeta indicada, dentro de la ruta seleccionada?
-  const perteneceACarpeta = (item, tipo, nombre) => {
-    const enCategoria = normalizarCarpeta(item.categoria) === (tipo === TIPO.categoria ? nombre : selectedCategory);
-    if (tipo === TIPO.categoria) return enCategoria;
-    const enSub = normalizarCarpeta(item.subcategoria) === (tipo === TIPO.subcategoria ? nombre : selectedSubcategory);
-    if (tipo === TIPO.subcategoria) return enCategoria && enSub;
-    return enCategoria && enSub && normalizarCarpeta(item.subSubcategoria) === nombre;
-  };
-
-  const procesarAccionEquipo = async (tipo, nombreActual, nuevoNombre) => {
-    const campo = { [TIPO.categoria]: CAMPO.categoria, [TIPO.subcategoria]: CAMPO.subcategoria, [TIPO.seccion]: CAMPO.seccion }[tipo];
-    const nombre = normalizarCarpeta(nombreActual);
-    try {
-      await Promise.all(
-        equipos
-          .filter((item) => perteneceACarpeta(item, tipo, nombre))
-          .map((item) => updateEquipo(item.id, { [campo]: nuevoNombre }))
+  // Las operaciones de carpetas se hacen en el servidor; sin ID aún no se sincronizó.
+  const idDeCarpeta = (ruta) => {
+    const id = findCarpetaId(carpetas, ruta);
+    if (!id) {
+      Alert.alert(
+        "Carpeta sin sincronizar",
+        "Esta carpeta todavía no está en el servidor. Conéctate y espera a que se sincronicen los cambios."
       );
-      Alert.alert("¡Listo!", "Actualizado correctamente.");
-      cargarDatosLocales();
+    }
+    return id;
+  };
+
+  // Ejecuta una operación de carpetas y recarga el inventario.
+  const ejecutarCarpeta = async (operacion, mensaje) => {
+    try {
+      await operacion();
+      Alert.alert("¡Listo!", mensaje);
+      void cargarDatos();
+      return true;
     } catch (e) {
       Alert.alert("Error", e.message);
+      return false;
     }
   };
 
-  const guardarNuevoNombre = () => {
+  const handleEliminarConfirmacion = (tipo, nombreActual) => {
+    const id = idDeCarpeta(rutaDe(tipo, nombreActual));
+    if (!id) return;
+    Alert.alert("⚠️ Confirmar Eliminación", `¿Seguro que deseas eliminar "${nombreActual}"?\n\nLos equipos serán reasignados a "General".`, [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sí, Eliminar",
+        style: "destructive",
+        onPress: () => ejecutarCarpeta(() => eliminarCarpeta(id), "Carpeta eliminada."),
+      },
+    ]);
+  };
+
+  const guardarNuevoNombre = async () => {
     const nuevo = itemToEdit.newName.trim();
     if (!nuevo) {
       Alert.alert("Error", "El nombre no puede estar vacío.");
       return;
     }
     const { tipo, oldName } = itemToEdit;
+    const id = idDeCarpeta(rutaDe(tipo, oldName));
+    if (!id) return;
     setItemToEdit(null);
-    procesarAccionEquipo(tipo, oldName, nuevo);
 
+    const ok = await ejecutarCarpeta(() => renombrarCarpeta(id, nuevo), "Carpeta renombrada.");
+    if (!ok) return;
     const viejo = normalizarCarpeta(oldName);
     const nuevoNormalizado = normalizarCarpeta(nuevo);
     if (tipo === TIPO.categoria && selectedCategory === viejo) setSelectedCategory(nuevoNormalizado);
@@ -214,29 +163,17 @@ export function InventoryScreen() {
     setNewFolderName("");
   };
 
-  // Las carpetas vacías se guardan como un equipo plantilla (isTemplate).
   const handleCrearCarpeta = async () => {
     const nombre = newFolderName.trim();
     if (!nombre) {
       Alert.alert("Error", "El nombre no puede estar vacío.");
       return;
     }
-    const esNivel3 = creationTargetLevel === "nivel3";
-    try {
-      await createEquipo({
-        nombre: "Plantilla Sistema",
-        categoria: selectedCategory,
-        subcategoria: esNivel3 ? selectedSubcategory : normalizarCarpeta(nombre),
-        subSubcategoria: esNivel3 ? normalizarCarpeta(nombre) : CATEGORIA_GENERAL,
-        estado: "SISTEMA",
-        isTemplate: true,
-      });
-      Alert.alert("¡Éxito!", "Carpeta creada.");
-      cerrarModalCreacion();
-      cargarDatosLocales();
-    } catch (error) {
-      Alert.alert("Error", error.message);
-    }
+    const rutaPadre = creationTargetLevel === "nivel3" ? [selectedCategory, selectedSubcategory] : [selectedCategory];
+    const parentId = idDeCarpeta(rutaPadre);
+    if (!parentId) return;
+    const ok = await ejecutarCarpeta(() => crearCarpeta(parentId, nombre), "Carpeta creada.");
+    if (ok) cerrarModalCreacion();
   };
 
   // ==========================================
