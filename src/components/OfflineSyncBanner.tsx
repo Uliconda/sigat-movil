@@ -1,16 +1,24 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { Alert, Text, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, Animated, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   resolveOfflineConflict,
   subscribeSyncStatus,
   syncPendingChanges,
 } from "../services/supabaseData";
+import { BRAND } from "../theme/colors";
 import type { SyncStatus } from "../types";
 
 const mensajeDeError = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-// Franja superior que informa cambios pendientes, falta de conexión o conflictos.
+// Separación sobre el botón flotante "+" (bottom 20 + alto 60 + margen).
+const ESPACIO_SOBRE_FAB = 96;
+
+// Píldora flotante que informa cambios pendientes, falta de conexión o conflictos.
+// Respeta el área segura para no quedar bajo la barra de estado ni el indicador de inicio.
 export function OfflineSyncBanner({ userId }: { userId: string }) {
+  const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<SyncStatus>({
     online: true,
     pending: 0,
@@ -18,10 +26,20 @@ export function OfflineSyncBanner({ userId }: { userId: string }) {
     conflictItems: [],
     error: null,
   });
+  const visible = !(status.online && status.pending === 0);
+  const [anim] = useState(() => new Animated.Value(0));
 
   useEffect(() => subscribeSyncStatus(setStatus), []);
 
-  if (status.online && status.pending === 0) return null;
+  useEffect(() => {
+    if (!visible) {
+      anim.setValue(0);
+      return;
+    }
+    Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 60 }).start();
+  }, [visible, anim]);
+
+  if (!visible) return null;
 
   const handlePress = async () => {
     if (status.conflictItems?.length) {
@@ -83,27 +101,96 @@ export function OfflineSyncBanner({ userId }: { userId: string }) {
     }
   };
 
-  const message = !status.online
-    ? `Sin conexión · ${status.pending} cambio(s) guardado(s) en este teléfono`
+  // Estado visual: color de acento, icono, título y detalle.
+  const estado = !status.online
+    ? {
+        color: BRAND.warning,
+        icon: "cloud-offline" as const,
+        titulo: "Sin conexión",
+        detalle: `${status.pending} cambio(s) guardado(s) en este teléfono`,
+      }
     : status.conflicts
-      ? `${status.conflicts} conflicto(s) requieren revisión`
+      ? {
+          color: BRAND.danger,
+          icon: "git-compare" as const,
+          titulo: `${status.conflicts} conflicto(s)`,
+          detalle: "Toca para revisar",
+        }
       : status.error
-        ? `Sincronización detenida · ${status.pending} pendiente(s)`
-        : `Sincronizando ${status.pending} cambio(s)…`;
+        ? {
+            color: BRAND.danger,
+            icon: "alert-circle" as const,
+            titulo: "Sincronización detenida",
+            detalle: `${status.pending} pendiente(s) · Toca para reintentar`,
+          }
+        : {
+            color: BRAND.primary,
+            icon: null,
+            titulo: "Sincronizando",
+            detalle: `${status.pending} cambio(s)…`,
+          };
 
   return (
-    <TouchableOpacity
-      onPress={handlePress}
-      accessibilityRole="button"
-      style={{
-        backgroundColor: status.conflicts || status.error ? "#8E2A2A" : "#6B4A00",
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-      }}
-    >
-      <Text style={{ color: "#fff", textAlign: "center", fontSize: 12, fontWeight: "600" }}>
-        {message}
-      </Text>
-    </TouchableOpacity>
+    <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { justifyContent: "flex-end" }]}>
+      <Animated.View
+        style={{
+          alignSelf: "center",
+          marginBottom: insets.bottom + ESPACIO_SOBRE_FAB,
+          maxWidth: "88%",
+          opacity: anim,
+          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+        }}
+      >
+        <TouchableOpacity
+          onPress={handlePress}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`${estado.titulo}. ${estado.detalle}`}
+          style={styles.pill}
+        >
+          <View style={[styles.iconCircle, { backgroundColor: estado.color }]}>
+            {estado.icon ? (
+              <Ionicons name={estado.icon} size={16} color={BRAND.white} />
+            ) : (
+              <ActivityIndicator size="small" color={BRAND.white} />
+            )}
+          </View>
+          <View style={{ flexShrink: 1 }}>
+            <Text style={styles.titulo} numberOfLines={1}>{estado.titulo}</Text>
+            <Text style={styles.detalle} numberOfLines={1}>{estado.detalle}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(28,28,30,0.94)",
+    borderRadius: 28,
+    paddingVertical: 8,
+    paddingLeft: 8,
+    paddingRight: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.15)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  titulo: { color: BRAND.white, fontSize: 13, fontWeight: "700" },
+  detalle: { color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 1 },
+});

@@ -1,6 +1,7 @@
 import type { Session, User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, AppState, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthContext } from "./src/context/AuthContext";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import { InitialPasswordScreen } from "./src/screens/InitialPasswordScreen";
@@ -124,5 +125,9 @@ export default function App() {
     content = <AppNavigator user={user} />;
   }
 
-  return <AuthContext.Provider value={{ user, userData }}>{content}</AuthContext.Provider>;
+  return (
+    <SafeAreaProvider>
+      <AuthContext.Provider value={{ user, userData }}>{content}</AuthContext.Provider>
+    </SafeAreaProvider>
+  );
 }
