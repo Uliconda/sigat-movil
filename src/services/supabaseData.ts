@@ -59,7 +59,7 @@ function scheduleSync(userId: string) {
   });
 }
 
-async function getUserId(): Promise<string> {
+export async function getUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
   if (!data.session?.user?.id) {
@@ -68,11 +68,11 @@ async function getUserId(): Promise<string> {
   return data.session.user.id;
 }
 
-function storageKey(userId: string, collection: string) {
+export function storageKey(userId: string, collection: string) {
   return `${STORAGE_PREFIX}:${userId}:${collection}`;
 }
 
-async function readJson<T>(key: string, fallback: T): Promise<T> {
+export async function readJson<T>(key: string, fallback: T): Promise<T> {
   const value = await AsyncStorage.getItem(key);
   return value ? (JSON.parse(value) as T) : fallback;
 }

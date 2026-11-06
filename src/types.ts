@@ -1,4 +1,5 @@
 // Tipos del dominio SIGAT, compartidos por toda la app.
+import type { NavigatorScreenParams } from "@react-navigation/native";
 
 export type Rol = "usuario" | "admin" | "superadmin";
 
@@ -26,6 +27,8 @@ export interface EquipoData {
   alumno_nombre?: string;
   alumno_matricula?: string;
   poseedor_actual?: string;
+  /** Persona de Personal administrativo que tiene el equipo (null = nadie). */
+  personal_id?: string | null;
   fecha_prestamo?: string;
   fecha_registro?: string;
   personal_registro?: string;
@@ -66,6 +69,41 @@ export interface HistorialEntry {
   admin?: string;
   observaciones?: string;
   [campo: string]: unknown;
+}
+
+// --- Personal administrativo ---
+
+export type Conducta = "Excelente" | "Buena" | "Regular" | "Mala";
+
+/** Persona a la que se le asigna equipo (tabla personal_administrativo). */
+export interface Personal {
+  id: string;
+  nombre: string;
+  departamento: string | null;
+  /** Fechas en formato AAAA-MM-DD. */
+  fecha_ingreso: string | null;
+  fecha_termino: string | null;
+  /** Conducta respecto al uso del equipo. */
+  conducta: Conducta | null;
+  conducta_notas: string | null;
+}
+
+export type PersonalInput = Omit<Personal, "id">;
+
+/** Periodo en que una persona tuvo un equipo (tabla asignaciones_equipo). */
+export interface Asignacion {
+  id: string;
+  personal_id: string;
+  equipo_id: string;
+  equipo_nombre: string | null;
+  fecha_inicio: string;
+  /** null = la persona aún tiene el equipo. */
+  fecha_fin: string | null;
+  asignado_por: string | null;
+  recibido_por: string | null;
+  condicion_devolucion: string | null;
+  observaciones: string | null;
+  origen: string;
 }
 
 // --- Cola de cambios sin conexión ---
@@ -147,7 +185,14 @@ export type MainStackParamList = {
   Scanner: { returnMode?: boolean; expectedId?: string; mode?: "add" } | undefined;
 };
 
+export type PersonalStackParamList = {
+  PersonalList: undefined;
+  PersonalDetalle: { personalId: string };
+  PersonalForm: { personalId?: string } | undefined;
+};
+
 export type DrawerParamList = {
-  Main: { screen?: keyof MainStackParamList } | undefined;
+  Main: NavigatorScreenParams<MainStackParamList> | undefined;
+  Personal: undefined;
   About: undefined;
 };
