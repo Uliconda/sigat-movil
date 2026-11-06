@@ -17,6 +17,7 @@ const ESPACIO_SOBRE_FAB = 96;
 
 // Píldora flotante que informa cambios pendientes, falta de conexión o conflictos.
 // Respeta el área segura para no quedar bajo la barra de estado ni el indicador de inicio.
+// Se puede minimizar a una pestaña en el borde derecho para no tapar botones de la pantalla.
 export function OfflineSyncBanner({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<SyncStatus>({
@@ -27,17 +28,28 @@ export function OfflineSyncBanner({ userId }: { userId: string }) {
     error: null,
   });
   const visible = !(status.online && status.pending === 0);
+  const [minimizado, setMinimizado] = useState(false);
   const [anim] = useState(() => new Animated.Value(0));
 
-  useEffect(() => subscribeSyncStatus(setStatus), []);
+  // Un conflicto nuevo requiere atención: vuelve a mostrar la píldora completa.
+  useEffect(() => {
+    let conflictosPrevios = 0;
+    return subscribeSyncStatus((nuevo) => {
+      if (nuevo.conflicts > conflictosPrevios) setMinimizado(false);
+      conflictosPrevios = nuevo.conflicts;
+      setStatus(nuevo);
+    });
+  }, []);
 
+  // Anima la entrada al aparecer y en cada cambio entre píldora y pestaña.
   useEffect(() => {
     if (!visible) {
       anim.setValue(0);
       return;
     }
+    anim.setValue(0);
     Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 60 }).start();
-  }, [visible, anim]);
+  }, [visible, minimizado, anim]);
 
   if (!visible) return null;
 
@@ -130,6 +142,38 @@ export function OfflineSyncBanner({ userId }: { userId: string }) {
             detalle: `${status.pending} cambio(s)…`,
           };
 
+  const icono = estado.icon ? (
+    <Ionicons name={estado.icon} size={16} color={BRAND.white} />
+  ) : (
+    <ActivityIndicator size="small" color={BRAND.white} />
+  );
+
+  if (minimizado) {
+    return (
+      <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { justifyContent: "center" }]}>
+        <Animated.View
+          style={{
+            alignSelf: "flex-end",
+            marginRight: insets.right,
+            opacity: anim,
+            transform: [{ translateX: anim.interpolate({ inputRange: [0, 1], outputRange: [48, 0] }) }],
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => setMinimizado(false)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`${estado.titulo}. Toca para mostrar el aviso de sincronización`}
+            style={styles.pestana}
+          >
+            <Ionicons name="chevron-back" size={14} color="rgba(255,255,255,0.6)" />
+            <View style={[styles.iconCircle, { backgroundColor: estado.color }]}>{icono}</View>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    );
+  }
+
   return (
     <View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { justifyContent: "flex-end" }]}>
       <Animated.View
@@ -141,26 +185,31 @@ export function OfflineSyncBanner({ userId }: { userId: string }) {
           transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
         }}
       >
-        <TouchableOpacity
-          onPress={handlePress}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`${estado.titulo}. ${estado.detalle}`}
-          style={styles.pill}
-        >
-          <View style={[styles.iconCircle, { backgroundColor: estado.color }]}>
-            {estado.icon ? (
-              <Ionicons name={estado.icon} size={16} color={BRAND.white} />
-            ) : (
-              <ActivityIndicator size="small" color={BRAND.white} />
-            )}
-          </View>
-          <View style={{ flexShrink: 1 }}>
-            <Text style={styles.titulo} numberOfLines={1}>{estado.titulo}</Text>
-            <Text style={styles.detalle} numberOfLines={1}>{estado.detalle}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.6)" style={{ marginLeft: 4 }} />
-        </TouchableOpacity>
+        <View style={styles.pill}>
+          <TouchableOpacity
+            onPress={handlePress}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`${estado.titulo}. ${estado.detalle}`}
+            style={styles.pillContenido}
+          >
+            <View style={[styles.iconCircle, { backgroundColor: estado.color }]}>{icono}</View>
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.titulo} numberOfLines={1}>{estado.titulo}</Text>
+              <Text style={styles.detalle} numberOfLines={1}>{estado.detalle}</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={styles.separador} />
+          <TouchableOpacity
+            onPress={() => setMinimizado(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Minimizar aviso de sincronización"
+            style={styles.botonMinimizar}
+          >
+            <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.75)" />
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </View>
   );
@@ -170,13 +219,40 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
     backgroundColor: "rgba(28,28,30,0.94)",
     borderRadius: 28,
     paddingVertical: 8,
     paddingLeft: 8,
-    paddingRight: 14,
+    paddingRight: 6,
     borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.15)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  pillContenido: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 1 },
+  separador: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: "stretch",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    marginHorizontal: 10,
+  },
+  botonMinimizar: { width: 28, height: 32, alignItems: "center", justifyContent: "center" },
+  // Pestaña pegada al borde derecho: solo las esquinas izquierdas redondeadas.
+  pestana: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "rgba(28,28,30,0.94)",
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    paddingVertical: 6,
+    paddingLeft: 4,
+    paddingRight: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: 0,
     borderColor: "rgba(255,255,255,0.15)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
