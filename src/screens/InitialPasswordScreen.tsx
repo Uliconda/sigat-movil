@@ -14,7 +14,8 @@ import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
 import type { Perfil } from "../types";
 
-const MIN_PASSWORD_LENGTH = 12;
+// Igual que la web, la Edge Function manage-users y Supabase Auth.
+const MIN_PASSWORD_LENGTH = 6;
 
 // Obliga a reemplazar la contraseña temporal antes de usar la app.
 export function InitialPasswordScreen({ onComplete }: { onComplete: (perfil: Perfil) => void }) {

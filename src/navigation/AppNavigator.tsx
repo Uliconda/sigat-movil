@@ -20,7 +20,6 @@ export function AppNavigator({ user }: { user: User | null }) {
     <NavigationContainer>
       {user ? (
         <View style={{ flex: 1 }}>
-          <OfflineSyncBanner userId={user.id} />
           <Drawer.Navigator
             drawerContent={(props) => <DrawerContent {...props} />}
             screenOptions={{
@@ -42,6 +41,8 @@ export function AppNavigator({ user }: { user: User | null }) {
               })}
             />
           </Drawer.Navigator>
+          {/* Se dibuja después del menú para flotar sobre todas las pantallas. */}
+          <OfflineSyncBanner userId={user.id} />
         </View>
       ) : (
         <LoginScreen />
