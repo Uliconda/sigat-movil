@@ -52,6 +52,12 @@ export function DrawerContent(props: DrawerContentComponentProps) {
           onPress={() => props.navigation.navigate("Main", { screen: "InventoryList" })}
         />
         <DrawerItem
+          label="Personal administrativo"
+          labelStyle={labelStyle}
+          icon={() => <Ionicons name="people" size={22} color={colors.primary} />}
+          onPress={() => props.navigation.navigate("Personal", { screen: "PersonalList" })}
+        />
+        <DrawerItem
           label="Acerca de"
           labelStyle={labelStyle}
           icon={() => <Ionicons name="information-circle" size={22} color={colors.primary} />}

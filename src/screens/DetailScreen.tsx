@@ -3,14 +3,17 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { type ComponentProps, useCallback, useEffect, useState } from "react";
 import { Alert, ScrollView, type StyleProp, Text, type TextStyle, TouchableOpacity, View } from "react-native";
 import { FormModal } from "../components/FormModal";
+import { PersonalPickerModal } from "../components/PersonalPickerModal";
 import { LabeledInput } from "../components/ThemedInput";
 import { ESTADOS, getCondicionInfo, getEstadoInfo } from "../constants/estados";
 import { canManage, isSuperadmin } from "../constants/roles";
 import { useAuth } from "../context/AuthContext";
+import { getPersonalLocal } from "../services/personalData";
 import { deleteEquipo, getEquipo, updateEquipo } from "../services/supabaseData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
-import type { Equipo, MainStackParamList } from "../types";
+import type { Equipo, MainStackParamList, Personal } from "../types";
+import { esAdministrativo } from "../utils/personal";
 
 type AccionMotivo = "BAJA" | "REACTIVAR";
 
@@ -82,6 +85,10 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
   const [nombreAlumno, setNombreAlumno] = useState("");
   const [matriculaAlumno, setMatriculaAlumno] = useState("");
 
+  // Equipos administrativos: se asignan a alguien del Personal administrativo.
+  const [personalModalVisible, setPersonalModalVisible] = useState(false);
+  const [asignado, setAsignado] = useState<Personal | null>(null);
+
   // Modal de motivo (baja / reactivación)
   const [reasonAction, setReasonAction] = useState<AccionMotivo | null>(null);
   const [reasonText, setReasonText] = useState("");
@@ -89,6 +96,22 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
   const estado = getEstadoInfo(item.estado);
   const condicion = getCondicionInfo(item.condicion_fisica);
   const usuario = userData?.nombre || "Usuario Móvil";
+  const administrativo = esAdministrativo(item);
+
+  // Datos de la persona que tiene el equipo (lista guardada en el teléfono).
+  useEffect(() => {
+    let active = true;
+    if (!item.personal_id) {
+      void Promise.resolve().then(() => active && setAsignado(null));
+    } else {
+      void getPersonalLocal()
+        .then((lista) => active && setAsignado(lista.find((p) => p.id === item.personal_id) ?? null))
+        .catch(() => undefined);
+    }
+    return () => {
+      active = false;
+    };
+  }, [item.personal_id]);
 
   // Si la pantalla recibe un equipo nuevo (p. ej. al volver de Editar), se usa ese.
   useEffect(() => {
@@ -145,6 +168,45 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
     }
   };
 
+  const handleAsignarPersonal = async (persona: Personal) => {
+    setLoading(true);
+    try {
+      const changes = {
+        estado: ESTADOS.PRESTADO,
+        usuarioActual: usuario,
+        personal_id: persona.id,
+        alumno_nombre: persona.nombre,
+        alumno_matricula: "",
+        poseedor_actual: persona.departamento ? `${persona.nombre} (${persona.departamento})` : persona.nombre,
+        fecha_prestamo: new Date().toISOString(),
+      };
+      await updateEquipo(item.id, changes, {
+        idEquipo: item.id,
+        nombreEquipo: item.nombre,
+        accion: "PRÉSTAMO",
+        fecha: new Date(),
+        admin: usuario,
+        observaciones: `Asignado a personal administrativo: ${changes.poseedor_actual} - ${ORIGEN_APP}`,
+      });
+      setItem((prev) => ({ ...prev, ...changes }));
+      setPersonalModalVisible(false);
+      Alert.alert("¡Equipo asignado!", `${persona.nombre} queda como responsable. Se sincronizará cuando haya conexión.`);
+    } catch {
+      Alert.alert("Error", "No se pudo registrar la asignación.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const abrirPersonal = () => {
+    if (!item.personal_id) return;
+    navigation.getParent()?.navigate("Personal", {
+      screen: "PersonalDetalle",
+      params: { personalId: item.personal_id },
+      initial: false,
+    });
+  };
+
   const handleConfirmReasonAction = async () => {
     const motivo = reasonText.trim();
     if (!motivo) {
@@ -161,6 +223,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
         alumno_nombre: "",
         alumno_matricula: "",
         poseedor_actual: "",
+        personal_id: null,
       };
       await updateEquipo(item.id, changes, {
         idEquipo: item.id,
@@ -232,7 +295,9 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
       ? "BLOQUEADO (FALTA)"
       : estado.isPrestado
         ? "OCUPADO"
-        : "PRESTAR";
+        : administrativo
+          ? "ASIGNAR"
+          : "PRESTAR";
 
   const accionMotivo = reasonAction ? ACCIONES_MOTIVO[reasonAction] : null;
 
@@ -267,7 +332,17 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
           <Field label="Descripción" value={item.descripcion || "Sin descripción"} />
 
           {/* Se muestra quién lo tiene, incluso si "No responde", para saber a quién cobrar. */}
-          {(estado.isPrestado || estado.isNoResponde) && (
+          {(estado.isPrestado || estado.isNoResponde) && item.personal_id ? (
+            <TouchableOpacity onPress={abrirPersonal} accessibilityRole="button" accessibilityLabel="Ver ficha del personal">
+              <Field
+                label="Asignado a (personal administrativo):"
+                value={asignado?.nombre || item.alumno_nombre || item.poseedor_actual || "Sin datos"}
+                valueStyle={styles.valueHighlight}
+              />
+              <Field label="Departamento:" value={asignado?.departamento || "-"} />
+              <Text style={{ color: colors.primary, fontSize: 12, fontWeight: "bold", marginTop: 4 }}>VER FICHA E HISTORIAL ›</Text>
+            </TouchableOpacity>
+          ) : (estado.isPrestado || estado.isNoResponde) && (
             <>
               <Field
                 label="Poseedor / Deudor:"
@@ -302,7 +377,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: estado.canPrestar ? colors.success : colors.disabled }]}
             disabled={!estado.canPrestar}
-            onPress={() => setLoanModalVisible(true)}
+            onPress={() => (administrativo ? setPersonalModalVisible(true) : setLoanModalVisible(true))}
           >
             <Text style={[styles.buttonText, { color: estado.canPrestar ? "white" : "#AAA" }]}>{prestarLabel}</Text>
           </TouchableOpacity>
@@ -343,6 +418,14 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
           onChangeText={setMatriculaAlumno}
         />
       </FormModal>
+
+      <PersonalPickerModal
+        visible={personalModalVisible}
+        equipoNombre={item.nombre}
+        loading={loading}
+        onCancel={() => setPersonalModalVisible(false)}
+        onConfirm={handleAsignarPersonal}
+      />
 
       <FormModal
         visible={accionMotivo !== null}

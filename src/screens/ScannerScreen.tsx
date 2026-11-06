@@ -150,6 +150,7 @@ export function ScannerScreen({ route, navigation }: NativeStackScreenProps<Main
         alumno_nombre: "",
         alumno_matricula: "",
         poseedor_actual: "",
+        personal_id: null,
       }, {
         idEquipo: tempEquipoData.id,
         nombreEquipo: tempEquipoData.nombre,

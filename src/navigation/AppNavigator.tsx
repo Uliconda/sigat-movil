@@ -9,6 +9,7 @@ import { LoginScreen } from "../screens/LoginScreen";
 import { useTheme } from "../theme/useTheme";
 import type { DrawerParamList } from "../types";
 import { MainStack, MenuButton } from "./MainStack";
+import { PersonalStack } from "./PersonalStack";
 
 const Drawer = createDrawerNavigator<DrawerParamList>();
 
@@ -28,6 +29,7 @@ export function AppNavigator({ user }: { user: User | null }) {
             }}
           >
             <Drawer.Screen name="Main" component={MainStack} />
+            <Drawer.Screen name="Personal" component={PersonalStack} />
             <Drawer.Screen
               name="About"
               component={AboutScreen}
