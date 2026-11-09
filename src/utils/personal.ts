@@ -70,6 +70,15 @@ export function leerFecha(texto: string): string | null | undefined {
   return hoyISO(fecha);
 }
 
+// Agrega las diagonales mientras se escribe: "15032026" → "15/03/2026".
+// Al borrar no deja una diagonal colgando ("15/" → "15").
+export function mascaraFecha(texto: string): string {
+  const digitos = texto.replace(/\D/g, "").slice(0, 8);
+  if (digitos.length <= 2) return digitos;
+  if (digitos.length <= 4) return `${digitos.slice(0, 2)}/${digitos.slice(2)}`;
+  return `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`;
+}
+
 export interface FormularioPersonal {
   nombre: string;
   departamento: string;
@@ -129,3 +138,20 @@ export function buscarPersonal<T extends Pick<Personal, "nombre" | "departamento
 // Equipos que la persona tiene ahora (según el inventario, también sin conexión).
 export const equiposDePersona = (equipos: Equipo[], personalId: string): Equipo[] =>
   equipos.filter((equipo) => equipo.personal_id === personalId);
+
+export const SIN_DEPARTAMENTO = "Sin departamento";
+
+// Agrupa por departamento (alfabético, "Sin departamento" al final) y dentro
+// de cada uno por nombre.
+export function agruparPorDepartamento<T extends Pick<Personal, "nombre" | "departamento">>(
+  lista: T[]
+): { titulo: string; data: T[] }[] {
+  const grupos = new Map<string, T[]>();
+  for (const persona of lista) {
+    const titulo = persona.departamento?.trim() || SIN_DEPARTAMENTO;
+    grupos.set(titulo, [...(grupos.get(titulo) ?? []), persona]);
+  }
+  return [...grupos.entries()]
+    .sort(([a], [b]) => (a === SIN_DEPARTAMENTO ? 1 : b === SIN_DEPARTAMENTO ? -1 : a.localeCompare(b, "es")))
+    .map(([titulo, data]) => ({ titulo, data: [...data].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")) }));
+}

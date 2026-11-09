@@ -78,3 +78,19 @@ export const crearPersonal = (datos: PersonalInput) =>
 
 export const actualizarPersonal = (id: string, datos: PersonalInput) =>
   guardar(() => supabase.from("personal_administrativo").update(datos).eq("id", id).select(CAMPOS_PERSONAL).single());
+
+// Elimina para siempre a la persona y su historial de asignaciones (en Supabase).
+// El servidor lo rechaza si todavía tiene equipo asignado.
+export async function eliminarPersonal(id: string): Promise<void> {
+  await exigirConexion();
+  const { error } = await supabase.rpc("eliminar_personal", { p_id: id });
+  if (error) {
+    if (isNetworkError(error)) throw new Error("Necesitas conexión para eliminar personal.");
+    if (error.code === "PGRST202" || error.code === "42883") {
+      throw new Error("Falta ejecutar en Supabase la migración 20261107000000_eliminar_personal.sql.");
+    }
+    throw new Error(error.message || "No se pudo eliminar a la persona.");
+  }
+  await AsyncStorage.removeItem(storageKey(await getUserId(), `asignaciones:${id}`)).catch(() => undefined);
+  await getPersonal().catch(() => undefined);
+}

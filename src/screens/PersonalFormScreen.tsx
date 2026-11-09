@@ -14,6 +14,7 @@ import {
   departamentosAdministrativos,
   type FormularioPersonal,
   formularioDesde,
+  mascaraFecha,
   validarFormulario,
 } from "../utils/personal";
 
@@ -104,23 +105,25 @@ export function PersonalFormScreen({ route, navigation }: NativeStackScreenProps
           <LabeledInput
             label="Fecha de ingreso"
             placeholder="DD/MM/AAAA"
-            keyboardType="numbers-and-punctuation"
+            keyboardType="number-pad"
+            maxLength={10}
             value={form.fechaIngreso}
-            onChangeText={(v) => cambiar("fechaIngreso", v)}
+            onChangeText={(v) => cambiar("fechaIngreso", mascaraFecha(v))}
           />
         </View>
         <View style={{ flex: 1 }}>
           <LabeledInput
             label="Fecha de término"
             placeholder="DD/MM/AAAA"
-            keyboardType="numbers-and-punctuation"
+            keyboardType="number-pad"
+            maxLength={10}
             value={form.fechaTermino}
-            onChangeText={(v) => cambiar("fechaTermino", v)}
+            onChangeText={(v) => cambiar("fechaTermino", mascaraFecha(v))}
           />
         </View>
       </View>
       <Text style={{ color: colors.subText, fontSize: 12, marginTop: -8, marginBottom: 15 }}>
-        Deja la fecha de término vacía mientras la persona siga laborando.
+        Escribe solo los números (las diagonales se ponen solas). Deja la fecha de término vacía mientras la persona siga laborando.
       </Text>
 
       <FieldLabel>Conducta respecto al uso del equipo</FieldLabel>

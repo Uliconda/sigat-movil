@@ -1,5 +1,7 @@
 import {
+  agruparPorDepartamento,
   departamentosAdministrativos,
+  mascaraFecha,
   buscarPersonal,
   equiposDePersona,
   esAdministrativo,
@@ -103,5 +105,37 @@ describe("departamentosAdministrativos", () => {
     ];
     const equipos = [{ categoria: "Administrativos", subcategoria: "control escolar" }];
     expect(departamentosAdministrativos(carpetas, equipos)).toEqual(["CONTROL ESCOLAR", "FINANZAS"]);
+  });
+});
+
+describe("mascaraFecha", () => {
+  it("agrega las diagonales al escribir solo números", () => {
+    expect(mascaraFecha("1")).toBe("1");
+    expect(mascaraFecha("150")).toBe("15/0");
+    expect(mascaraFecha("15032026")).toBe("15/03/2026");
+    expect(mascaraFecha("150320261")).toBe("15/03/2026");
+    expect(leerFecha(mascaraFecha("15032026"))).toBe("2026-03-15");
+  });
+
+  it("al borrar no deja diagonales colgando y respeta lo pegado con diagonales", () => {
+    expect(mascaraFecha("15/")).toBe("15");
+    expect(mascaraFecha("15/03/")).toBe("15/03");
+    expect(mascaraFecha("15/03/2026")).toBe("15/03/2026");
+  });
+});
+
+describe("agruparPorDepartamento", () => {
+  it("ordena departamentos y nombres, con 'Sin departamento' al final", () => {
+    const lista = [
+      persona("Zoe", "FINANZAS"),
+      persona("Ana"),
+      persona("Bruno", "CONTROL ESCOLAR"),
+      persona("Alma", "FINANZAS"),
+    ];
+    expect(agruparPorDepartamento(lista).map((g) => [g.titulo, g.data.map((p) => p.nombre)])).toEqual([
+      ["CONTROL ESCOLAR", ["Bruno"]],
+      ["FINANZAS", ["Alma", "Zoe"]],
+      ["Sin departamento", ["Ana"]],
+    ]);
   });
 });

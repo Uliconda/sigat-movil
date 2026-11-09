@@ -1,15 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useMemo, useState } from "react";
-import { FlatList, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, RefreshControl, SectionList, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { EmptyState } from "../components/EmptyState";
 import { canManage } from "../constants/roles";
 import { useAuth } from "../context/AuthContext";
 import { usePersonal } from "../hooks/usePersonal";
+import { eliminarPersonal } from "../services/personalData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
-import type { PersonalStackParamList } from "../types";
-import { buscarPersonal, colorConducta, equiposDePersona, estaActivo } from "../utils/personal";
+import type { Personal, PersonalStackParamList } from "../types";
+import {
+  agruparPorDepartamento,
+  buscarPersonal,
+  colorConducta,
+  equiposDePersona,
+  estaActivo,
+} from "../utils/personal";
 
 export function PersonalListScreen({ navigation }: NativeStackScreenProps<PersonalStackParamList, "PersonalList">) {
   const { userData } = useAuth();
@@ -23,7 +30,52 @@ export function PersonalListScreen({ navigation }: NativeStackScreenProps<Person
     // Al buscar se incluye a quien ya dejó de laborar; sin búsqueda, según el filtro.
     return busqueda.trim() || verBajas ? filtrados : filtrados.filter((p) => estaActivo(p));
   }, [personal, busqueda, verBajas]);
+  const secciones = useMemo(() => agruparPorDepartamento(resultados), [resultados]);
   const totalBajas = personal.filter((p) => !estaActivo(p)).length;
+
+  // Mantener presionado: opción de eliminar para siempre (solo administradores).
+  const opciones = (persona: Personal) => {
+    if (!canManage(userData)) return;
+    Alert.alert("Opciones", persona.nombre, [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Eliminar para siempre", style: "destructive", onPress: () => confirmarEliminar(persona) },
+    ]);
+  };
+
+  const confirmarEliminar = (persona: Personal) => {
+    const asignados = equiposDePersona(equipos, persona.id);
+    if (asignados.length > 0) {
+      Alert.alert(
+        "Tiene equipo asignado",
+        `${persona.nombre} todavía tiene: ${asignados.map((e) => e.id).join(", ")}.
+
+Devuelve el equipo antes de eliminar a la persona.`
+      );
+      return;
+    }
+    Alert.alert(
+      "⚠️ Eliminar para siempre",
+      `¿Seguro que deseas eliminar a "${persona.nombre}"?
+
+Se borrarán sus datos y su historial de equipos en Supabase. Esta acción no se puede deshacer.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: () => {
+            eliminarPersonal(persona.id).then(
+              () => {
+                Alert.alert("¡Listo!", `"${persona.nombre}" fue eliminado.`);
+                void refrescar();
+              },
+              (e: unknown) => Alert.alert("No se eliminó", e instanceof Error ? e.message : String(e))
+            );
+          },
+        },
+      ]
+    );
+  };
 
   const vacio = () => {
     if (cargando) return <EmptyState loading title="Cargando personal..." />;
@@ -75,9 +127,15 @@ export function PersonalListScreen({ navigation }: NativeStackScreenProps<Person
         ) : null}
       </View>
 
-      <FlatList
-        data={resultados}
+      <SectionList
+        sections={secciones}
         keyExtractor={(p) => p.id}
+        stickySectionHeadersEnabled={false}
+        renderSectionHeader={({ section }) => (
+          <Text style={[styles.sectionTitle, { color: colors.subText, marginTop: 10, marginBottom: 8 }]}>
+            {section.titulo.toUpperCase()} ({section.data.length})
+          </Text>
+        )}
         contentContainerStyle={[styles.listContent, { paddingHorizontal: 15, paddingTop: 10 }]}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} colors={[colors.primary]} />}
         ListEmptyComponent={vacio}
@@ -88,14 +146,13 @@ export function PersonalListScreen({ navigation }: NativeStackScreenProps<Person
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.card, borderColor: colors.divider, opacity: activo ? 1 : 0.7 }]}
               onPress={() => navigation.navigate("PersonalDetalle", { personalId: item.id })}
+              onLongPress={() => opciones(item)}
               accessibilityRole="button"
+              accessibilityHint={canManage(userData) ? "Mantén presionado para ver más opciones" : undefined}
             >
               <View style={[styles.cardIndicator, { backgroundColor: activo ? colorConducta(item.conducta) : colors.neutral }]} />
               <View style={styles.cardContent}>
                 <Text style={[styles.cardTitle, { color: colors.text }]}>{item.nombre}</Text>
-                <Text style={[styles.cardSubtitle, { color: colors.subText }]}>
-                  {item.departamento || "Sin departamento"}
-                </Text>
                 <Text style={[styles.cardStatus, { color: activo ? colors.primary : colors.subText }]}>
                   {activo
                     ? cantidad === 0
