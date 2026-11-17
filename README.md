@@ -31,6 +31,7 @@ comparten la misma base de datos y se actualizan en tiempo real.
 | 📶 **Funciona sin conexión** | Todo se guarda en el teléfono y se sincroniza al recuperar la conexión. |
 | ⚡ **Tiempo real** | Lo que cambia en la web u otro teléfono aparece sin recargar. |
 | 🗂️ **Inventario por carpetas** | Categoría › Subcategoría › Sección, con búsqueda por nombre, ID, marca, serie o persona. |
+| 🗂️ **Personal administrativo** | Alta y consulta del personal por departamento; los equipos de ADMINISTRATIVOS se asignan a una persona y queda su historial. |
 | 👥 **Roles** | Usuario (presta y recibe), administrador (registra y organiza) y superadministrador (elimina). |
 | 🌗 **Modo claro y oscuro** | Sigue la configuración del teléfono. |
 
@@ -121,7 +122,7 @@ silencio.
 ## Calidad
 
 ```bash
-npm test            # 74 pruebas con Jest
+npm test            # 86 pruebas con Jest
 npm run typecheck   # TypeScript en modo estricto
 npm run lint        # ESLint
 ```
@@ -146,24 +147,39 @@ App.tsx             Sesión, perfil y navegación
 src/
   screens/          Una pantalla por archivo (Inventario, Detalle, Escáner, ...)
   components/       Piezas reutilizables (ProductForm, FormModal, EquipoCard, ...)
-  navigation/       Menú lateral y pila de pantallas
-  services/         Supabase y modo sin conexión (offlineQueue.ts es lógica pura)
+  navigation/       Menú lateral y pilas de pantallas (MainStack, PersonalStack)
+  services/         Supabase, personal y modo sin conexión (offlineQueue.ts es lógica pura)
   constants/        Estados, condiciones, roles y categorías
   utils/            Conteo y árbol de carpetas, búsqueda
-  hooks/            useInventario (datos + tiempo real), useCategoryTree
+  hooks/            useInventario (datos + tiempo real), useCategoryTree, usePersonal
   theme/            Colores claro/oscuro, useTheme() y estilos compartidos
   context/          AuthContext (usuario y perfil)
   types.ts          Modelo del dominio: Equipo, Carpeta, Perfil, cola, rutas
 __tests__/          Pruebas con Jest (jest-expo)
+test/               Supabase simulado en memoria para las pruebas
 scripts/            check-env.js (verificación previa a compilar)
+docs/               Historial de la migración a Supabase
 ```
 
 ## Desarrollo
 
+### Requisitos
+
+- Node.js 22 o superior.
+- Un teléfono con **Expo Go** o un emulador Android/iOS.
+- [EAS CLI](https://docs.expo.dev/build/setup/) (`npm i -g eas-cli`) solo para compilar.
+- El proyecto de Supabase configurado con [SIGAT Web](https://github.com/Uliconda/sigat-web).
+
 ### Configuración local
 
-Crea `.env` (puedes copiar `.env.example`) con la URL del proyecto Supabase y
-la clave **publishable**:
+```bash
+git clone https://github.com/Uliconda/sigat-movil.git
+cd sigat-movil
+npm install
+cp .env.example .env
+```
+
+Llena `.env` con la URL del proyecto Supabase y la clave **publishable**:
 
 ```dotenv
 EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
@@ -175,17 +191,18 @@ clave `service_role` ni una clave `secret`. `.env` está excluido de Git.
 
 ### Base de datos
 
-El esquema es compartido con SIGAT Web y vive en ese repositorio:
-`sigat-web/supabase/migrations/20261020000000_initial_schema.sql`. Ejecútalo
-completo en el SQL Editor de Supabase; se puede volver a ejecutar sin duplicar
-nada.
+El esquema, las Edge Functions y la creación del primer administrador están en
+el repositorio de SIGAT Web (`supabase/migrations/`); sigue su sección
+**Configurar Supabase**. La app necesita todas las migraciones, incluidas las de
+personal administrativo.
 
 ### Ejecutar
 
 ```bash
-npm install
 npx expo start -c
 ```
+
+Escanea el QR con Expo Go o presiona `a` / `i` para abrir el emulador.
 
 Inicia sesión con una cuenta de Supabase Auth que tenga perfil SIGAT. Si la
 cuenta tiene una contraseña temporal, la app pedirá cambiarla.
