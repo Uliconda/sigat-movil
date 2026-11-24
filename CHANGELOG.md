@@ -3,6 +3,39 @@
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 las versiones siguen [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Sin publicar]
+
+Requiere aplicar en Supabase las migraciones `20261119000000_edificios.sql` y
+`20261119120000_areas.sql` (en `sigat-web`), en ese orden.
+
+### Agregado
+
+- **Pestañas abajo:** Inicio · Edificios · Categorías · Personal. "Acerca de" y
+  "Cerrar sesión" quedan en el menú lateral.
+- **Inicio:** buscador, botón grande para escanear, "Ver todos los equipos" y
+  conteos rápidos calculados en el teléfono (sin generar archivos): equipos por
+  estado, préstamos vencidos (+48 h, misma regla que el servidor) y equipos por
+  edificio. Cada conteo abre la lista filtrada. Los administradores tienen el
+  botón "Ver reportes en SIGAT Web", que abre los PDF en el navegador.
+- **Edificios:** cada edificio muestra solo las categorías con equipos ahí, y
+  cada categoría abre directamente la lista con chips para subcategoría,
+  espacio y estado.
+- **Ubicación de cada equipo** (edificio y espacio) en Agregar/Editar, en la
+  tarjeta y en el detalle. El edificio se elige del catálogo de SIGAT Web; el
+  espacio puede ser uno nuevo (también sin conexión).
+- **Categorías:** filtro por edificio sobre las carpetas de siempre.
+- **Departamento / área** dentro de cada espacio (Edificio › Espacio › Área).
+  Dentro de un edificio se ven sus espacios; cada espacio abre su lista con
+  chips de departamento / área, y el botón + agrega el equipo con edificio,
+  espacio y área ya definidos. En Agregar/Editar se elige del catálogo o se
+  escribe uno nuevo.
+
+### Cambiado
+
+- El inventario se carga una sola vez y se comparte entre pestañas (un solo
+  canal en tiempo real).
+- Nueva dependencia: `@react-navigation/bottom-tabs`.
+
 ## [2.0.0] - 2026-11-03
 
 Versión mayor: nueva plataforma de datos, arquitectura modular y TypeScript.

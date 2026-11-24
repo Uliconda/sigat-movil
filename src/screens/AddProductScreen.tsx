@@ -6,11 +6,11 @@ import { ESTADOS } from "../constants/estados";
 import { useAuth } from "../context/AuthContext";
 import { getEquipo, getNextEquipoId, saveEquipo } from "../services/supabaseData";
 import { useTheme } from "../theme/useTheme";
-import type { MainStackParamList } from "../types";
+import type { StackParamList } from "../types";
 
 const CARGANDO = "Cargando...";
 
-export function AddProductScreen({ navigation }: NativeStackScreenProps<MainStackParamList, "AddProduct">) {
+export function AddProductScreen({ route, navigation }: NativeStackScreenProps<StackParamList, "AddProduct">) {
   const { userData } = useAuth();
   const { colors } = useTheme();
   const [idQr, setIdQr] = useState(CARGANDO);
@@ -68,7 +68,7 @@ export function AddProductScreen({ navigation }: NativeStackScreenProps<MainStac
         personal_registro: userData?.nombre || "Admin",
       });
       Alert.alert("¡Éxito!", "Equipo agregado correctamente.");
-      navigation.navigate("InventoryList");
+      navigation.goBack();
     } catch (error) {
       Alert.alert("Error", error instanceof Error ? error.message : String(error));
     } finally {
@@ -91,6 +91,12 @@ export function AddProductScreen({ navigation }: NativeStackScreenProps<MainStac
     <ProductForm
       title="Nuevo Equipo"
       idValue={idQr}
+      // Desde un edificio, espacio o área, el equipo nuevo se propone ahí.
+      initialValues={
+        route.params?.edificio
+          ? { edificio: route.params.edificio, espacio: route.params.espacio, area: route.params.area }
+          : undefined
+      }
       idNote={idNote}
       submitLabel="GUARDAR EQUIPO"
       loading={loading}

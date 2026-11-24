@@ -8,7 +8,7 @@ import { actualizarPersonal, crearPersonal, getPersonalLocal } from "../services
 import { getCarpetas, getCarpetasLocal, getEquiposLocal } from "../services/supabaseData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
-import type { PersonalStackParamList } from "../types";
+import type { StackParamList } from "../types";
 import {
   CONDUCTAS,
   departamentosAdministrativos,
@@ -21,7 +21,7 @@ import {
 // Opción del selector para dejar el departamento vacío.
 const SIN_DEPARTAMENTO = "__sin_departamento__";
 
-export function PersonalFormScreen({ route, navigation }: NativeStackScreenProps<PersonalStackParamList, "PersonalForm">) {
+export function PersonalFormScreen({ route, navigation }: NativeStackScreenProps<StackParamList, "PersonalForm">) {
   const personalId = route.params?.personalId;
   const { colors } = useTheme();
   const [form, setForm] = useState<FormularioPersonal>(() => formularioDesde(null));

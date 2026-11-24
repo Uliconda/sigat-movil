@@ -10,12 +10,12 @@ import {
   RefreshControl,
   StatusBar,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { EmptyState } from "../components/EmptyState";
 import { EquipoCard } from "../components/EquipoCard";
+import { FiltroChips } from "../components/FiltroChips";
 import { FolderCard } from "../components/FolderCard";
 import { FormModal } from "../components/FormModal";
 import { LevelHeader } from "../components/LevelHeader";
@@ -29,7 +29,6 @@ import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
 import {
   buildInventoryTree,
-  buscarEquipos,
   CAMPO_CARPETA as CAMPO,
   contarPorCarpeta,
   enCarpeta,
@@ -38,7 +37,8 @@ import {
   tieneCarpetasReales,
   type ConteoCarpeta,
 } from "../utils/carpetas";
-import type { Equipo, MainStackParamList } from "../types";
+import type { Equipo, StackParamList } from "../types";
+import { contarPorEdificio, edificioDe, SIN_EDIFICIO } from "../utils/ubicacion";
 
 const TIPO = {
   categoria: "categoría",
@@ -55,15 +55,21 @@ interface CarpetaEnEdicion {
   newName: string;
 }
 
-export function InventoryScreen() {
-  const navigation = useNavigation<NavigationProp<MainStackParamList>>();
+// Pestaña Categorías: carpetas Categoría › Subcategoría › Sección, con filtro
+// opcional por edificio. Con un edificio elegido solo se muestran las carpetas
+// que tienen equipos en él.
+export function CategoriasScreen() {
+  const navigation = useNavigation<NavigationProp<StackParamList>>();
   const { userData } = useAuth();
   const { colors, isDarkMode } = useTheme();
   const puedeAdministrar = canManage(userData);
 
-  const { equipos, carpetas, recargar: cargarDatos, cargando, refrescando, refrescar } = useInventario();
-  const [isSearchActive, setIsSearchActive] = useState(false);
-  const [searchText, setSearchText] = useState("");
+  const { equipos: todos, carpetas, ubicaciones, recargar: cargarDatos, cargando, refrescando, refrescar } = useInventario();
+  const [edificioFiltro, setEdificioFiltro] = useState<string | null>(null);
+  const opcionesEdificio = contarPorEdificio(todos, ubicaciones.edificios).filter((e) => e.cantidad > 0);
+  const equipos = edificioFiltro ? todos.filter((e) => edificioDe(e) === edificioFiltro) : todos;
+  // Sin filtro se muestran también las carpetas vacías (para poder llenarlas).
+  const vacias = <T,>(lista: T[]): T[] => (edificioFiltro ? [] : lista);
 
   // --- Navegación por carpetas (3 niveles) ---
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -78,19 +84,17 @@ export function InventoryScreen() {
   // ==========================================
   // DATOS DE CADA NIVEL
   // ==========================================
-  const filteredEquipos = buscarEquipos(equipos, searchText);
-
   // Carpetas del servidor + las que usan los equipos (aunque aún no se sincronicen).
-  const tree = buildInventoryTree(carpetas, equipos);
+  const tree = buildInventoryTree(carpetas, todos);
 
-  const listaCategorias = contarPorCarpeta(equipos, CAMPO.categoria, Object.keys(tree));
+  const listaCategorias = contarPorCarpeta(equipos, CAMPO.categoria, vacias(Object.keys(tree)));
 
   const equiposNivel2 = equipos.filter(enCarpeta(CAMPO.categoria, selectedCategory));
-  const listaSubcategorias = contarPorCarpeta(equiposNivel2, CAMPO.subcategoria, Object.keys((selectedCategory && tree[selectedCategory]) || {}));
+  const listaSubcategorias = contarPorCarpeta(equiposNivel2, CAMPO.subcategoria, vacias(Object.keys((selectedCategory && tree[selectedCategory]) || {})));
   const tieneSubcategoriasReales = tieneCarpetasReales(listaSubcategorias);
 
   const equiposNivel3 = equiposNivel2.filter(enCarpeta(CAMPO.subcategoria, selectedSubcategory));
-  const listaNivel3 = contarPorCarpeta(equiposNivel3, CAMPO.seccion, (selectedCategory && selectedSubcategory && tree[selectedCategory]?.[selectedSubcategory]) || []);
+  const listaNivel3 = contarPorCarpeta(equiposNivel3, CAMPO.seccion, vacias((selectedCategory && selectedSubcategory && tree[selectedCategory]?.[selectedSubcategory]) || []));
   const tieneNivel3Real = tieneCarpetasReales(listaNivel3);
 
   const equiposFinales = sinPlantillas(equiposNivel3.filter(enCarpeta(CAMPO.seccion, selectedNivel3)));
@@ -293,20 +297,8 @@ export function InventoryScreen() {
     setSelectedNivel3(null);
   };
 
-  // Árbol de decisión: qué se muestra según la búsqueda y la carpeta seleccionada.
+  // Árbol de decisión: qué se muestra según la carpeta seleccionada.
   const renderContenido = () => {
-    if (searchText.trim() !== "") {
-      return listaEquipos(
-        "lista-busqueda",
-        filteredEquipos,
-        <EmptyState
-          icon="search-outline"
-          title="Sin resultados"
-          message={`Nada coincide con "${searchText.trim()}". Puedes buscar por nombre, ID, marca, número de serie o persona.`}
-        />
-      );
-    }
-
     if (!selectedCategory) {
       return listaCarpetas("lista-cat-2col", listaCategorias, renderCategoria);
     }
@@ -369,40 +361,20 @@ export function InventoryScreen() {
     >
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
 
-      <TouchableOpacity style={styles.bigOrangeButton} onPress={() => navigation.navigate("Scanner", { returnMode: false })}>
-        <Text style={styles.bigButtonText}>ESCANEAR PRODUCTO</Text>
-      </TouchableOpacity>
+      {opcionesEdificio.some((e) => e.nombre !== SIN_EDIFICIO) && (
+        <FiltroChips
+          titulo="Edificio"
+          etiquetaTodos="Todos los edificios"
+          opciones={opcionesEdificio.map((e) => ({ valor: e.nombre, cantidad: e.cantidad }))}
+          valor={edificioFiltro}
+          onCambiar={setEdificioFiltro}
+        />
+      )}
 
       <View style={styles.headerRow}>
-        {isSearchActive ? (
-          <View style={[styles.searchContainer, { backgroundColor: colors.inputBg, borderColor: colors.divider }]}>
-            <Ionicons name="search" size={20} color={colors.subText} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Nombre, ID, marca, serie o persona…"
-              returnKeyType="search"
-              autoCorrect={false}
-              placeholderTextColor={colors.subText}
-              value={searchText}
-              onChangeText={setSearchText}
-              autoFocus
-            />
-            <TouchableOpacity
-              onPress={() => { setIsSearchActive(false); setSearchText(""); }}
-              accessibilityRole="button"
-              accessibilityLabel="Cerrar búsqueda"
-            >
-              <Ionicons name="close-circle" size={24} color={colors.subText} />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={{ flexDirection: "row", alignItems: "center", flex: 1, justifyContent: "space-between" }}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{titulo}</Text>
-            <TouchableOpacity onPress={() => setIsSearchActive(true)} accessibilityRole="button" accessibilityLabel="Buscar">
-              <Ionicons name="search" size={28} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-        )}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          {edificioFiltro ? `${titulo} · ${edificioFiltro}` : titulo}
+        </Text>
       </View>
 
       {renderContenido()}

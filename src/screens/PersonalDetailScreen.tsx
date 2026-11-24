@@ -9,7 +9,7 @@ import { getAsignacionesPersonal, getPersonal, getPersonalLocal } from "../servi
 import { getEquiposLocal } from "../services/supabaseData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
-import type { Asignacion, Equipo, Personal, PersonalStackParamList } from "../types";
+import type { Asignacion, Equipo, Personal, StackParamList } from "../types";
 import {
   colorConducta,
   equiposDePersona,
@@ -28,7 +28,7 @@ function Dato({ label, value, color }: { label: string; value: string; color?: s
   );
 }
 
-export function PersonalDetailScreen({ route, navigation }: NativeStackScreenProps<PersonalStackParamList, "PersonalDetalle">) {
+export function PersonalDetailScreen({ route, navigation }: NativeStackScreenProps<StackParamList, "PersonalDetalle">) {
   const { personalId } = route.params;
   const { userData } = useAuth();
   const { colors } = useTheme();
@@ -69,7 +69,7 @@ export function PersonalDetailScreen({ route, navigation }: NativeStackScreenPro
 
   // Abre el equipo en el inventario (otra sección del menú).
   const abrirEquipo = (equipo: Equipo) =>
-    navigation.getParent()?.navigate("Main", { screen: "Detalles", params: { item: equipo } });
+    navigation.navigate("Detalles", { item: equipo });
 
   if (!persona) {
     return (

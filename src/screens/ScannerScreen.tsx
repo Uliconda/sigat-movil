@@ -19,7 +19,7 @@ import { useAuth } from "../context/AuthContext";
 import { getEquipo, updateEquipo } from "../services/supabaseData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
-import type { MainStackParamList } from "../types";
+import type { StackParamList } from "../types";
 
 // Opciones de condición física al recibir un equipo.
 const OPCIONES_CONDICION = [
@@ -28,7 +28,7 @@ const OPCIONES_CONDICION = [
   { value: CONDICIONES.REEMPLAZAR, bg: "#ffebee", border: "#f44336", text: "#c62828" },
 ];
 
-export function ScannerScreen({ route, navigation }: NativeStackScreenProps<MainStackParamList, "Scanner">) {
+export function ScannerScreen({ route, navigation }: NativeStackScreenProps<StackParamList, "Scanner">) {
   const { userData } = useAuth();
   const { colors } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();

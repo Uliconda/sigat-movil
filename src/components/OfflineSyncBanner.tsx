@@ -12,8 +12,9 @@ import type { SyncStatus } from "../types";
 
 const mensajeDeError = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-// Separación sobre el botón flotante "+" (bottom 20 + alto 60 + margen).
-const ESPACIO_SOBRE_FAB = 96;
+// Separación sobre el botón flotante "+" (bottom 20 + alto 60 + margen) y la
+// barra de pestañas (~56).
+const ESPACIO_SOBRE_FAB = 152;
 
 // Píldora flotante que informa cambios pendientes, falta de conexión o conflictos.
 // Respeta el área segura para no quedar bajo la barra de estado ni el indicador de inicio.
