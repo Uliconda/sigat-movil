@@ -21,6 +21,11 @@ export interface EquipoData {
   categoria?: string;
   subcategoria?: string;
   subSubcategoria?: string;
+  /** Ubicación (catálogo edificios › espacios › áreas). null = sin edificio / espacio / área. */
+  edificio?: string | null;
+  espacio?: string | null;
+  /** Departamento o área dentro del espacio. */
+  area?: string | null;
   estado?: string;
   condicion_fisica?: string;
   usuarioActual?: string;
@@ -54,6 +59,33 @@ export interface Carpeta {
   parent_id: string | null;
   nombre: string;
   nivel: 1 | 2 | 3;
+}
+
+/** Edificio del catálogo (tabla edificios). */
+export interface Edificio {
+  id: string;
+  nombre: string;
+}
+
+/** Espacio dentro de un edificio (tabla espacios). */
+export interface Espacio {
+  id: string;
+  edificio_id: string;
+  nombre: string;
+}
+
+/** Departamento o área dentro de un espacio (tabla areas). */
+export interface Area {
+  id: string;
+  espacio_id: string;
+  nombre: string;
+}
+
+/** Catálogo de ubicaciones. */
+export interface Ubicaciones {
+  edificios: Edificio[];
+  espacios: Espacio[];
+  areas: Area[];
 }
 
 /** Árbol de carpetas: Categoría > Subcategoría > [Secciones]. */
@@ -177,22 +209,48 @@ export type ConflictResolution = "keep-local" | "keep-server";
 
 // --- Navegación ---
 
-export type MainStackParamList = {
-  InventoryList: undefined;
+/** Filtro de estado del listado y de los conteos rápidos. */
+export type FiltroEstado = "disponible" | "prestado" | "vencido" | "fuera";
+
+/** Filtros iniciales del listado de equipos (los fijos no se pueden quitar). */
+export interface ListadoParams {
+  titulo?: string;
+  /** Nombre del edificio, o SIN_EDIFICIO. */
+  edificio?: string;
+  /** Nombre del espacio dentro del edificio, o SIN_ESPACIO. */
+  espacio?: string;
+  categoria?: string;
+  estado?: FiltroEstado;
+}
+
+/**
+ * Pantallas de cualquier pestaña. Cada pestaña tiene su propia pila con su
+ * pantalla raíz y todas las demás, así "Atrás" siempre vuelve a donde estabas.
+ */
+export type StackParamList = {
+  Inicio: undefined;
+  Edificios: undefined;
+  Edificio: { edificio: string };
+  Categorias: undefined;
+  PersonalList: undefined;
+  Listado: ListadoParams | undefined;
   Detalles: { item: Equipo };
-  AddProduct: { scannedId?: string } | undefined;
+  /** edificio / espacio / area: ubicación propuesta para el equipo nuevo. */
+  AddProduct: { scannedId?: string; edificio?: string; espacio?: string; area?: string } | undefined;
   EditProduct: { item: Equipo };
   Scanner: { returnMode?: boolean; expectedId?: string; mode?: "add" } | undefined;
-};
-
-export type PersonalStackParamList = {
-  PersonalList: undefined;
   PersonalDetalle: { personalId: string };
   PersonalForm: { personalId?: string } | undefined;
 };
 
+export type TabParamList = {
+  InicioTab: NavigatorScreenParams<StackParamList> | undefined;
+  EdificiosTab: NavigatorScreenParams<StackParamList> | undefined;
+  CategoriasTab: NavigatorScreenParams<StackParamList> | undefined;
+  PersonalTab: NavigatorScreenParams<StackParamList> | undefined;
+};
+
 export type DrawerParamList = {
-  Main: NavigatorScreenParams<MainStackParamList> | undefined;
-  Personal: undefined;
+  Tabs: NavigatorScreenParams<TabParamList> | undefined;
   About: undefined;
 };

@@ -3,12 +3,14 @@ import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from "react-na
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { getCategoriaConfig, normalizarCarpeta, OPCION_OTRA } from "../constants/categorias";
 import { CONDICIONES } from "../constants/estados";
+import { useInventarioContext } from "../context/InventarioContext";
 import { useCategoryTree } from "../hooks/useCategoryTree";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
 import { LabeledInput, FieldLabel, ThemedInput } from "./ThemedInput";
 import { type PickerItem, ThemedPicker } from "./ThemedPicker";
 import type { EquipoData } from "../types";
+import { normalizarUbicacion, ubicacionParaGuardar } from "../utils/ubicacion";
 
 /** Datos que entrega el formulario al guardar (carpetas ya normalizadas). */
 export type ProductFormValues = {
@@ -19,6 +21,9 @@ export type ProductFormValues = {
   categoria: string;
   subcategoria: string;
   subSubcategoria: string;
+  edificio: string | null;
+  espacio: string | null;
+  area: string | null;
   condicion_fisica?: string;
 };
 
@@ -42,6 +47,18 @@ const CONDICION_ITEMS: PickerItem[] = [
 ];
 
 const carpetaInicial = (valor?: string): string | null => (valor ? normalizarCarpeta(valor) : null);
+
+// Valores especiales de los selectores de ubicación.
+const NINGUNO = "__ninguno";
+const OTRO_ESPACIO = "__otro";
+const OTRA_AREA = "__otra_area";
+
+// El valor guardado en el equipo aunque aún no esté en el catálogo descargado
+// (p. ej. se escribió sin conexión), para que el selector lo siga mostrando.
+function conValorActual(catalogo: { nombre: string }[], valor: string, icono: string): PickerItem[] {
+  if (valor === NINGUNO || valor === OTRO_ESPACIO || valor === OTRA_AREA) return [];
+  return catalogo.some((c) => c.nombre === valor) ? [] : [{ label: `${icono} ${valor}`, value: valor }];
+}
 
 function withOtra(items: PickerItem[], label: string): PickerItem[] {
   return [...items, { label, value: OPCION_OTRA }];
@@ -67,6 +84,7 @@ export function ProductForm({
 }: ProductFormProps) {
   const { colors } = useTheme();
   const tree = useCategoryTree();
+  const { ubicaciones } = useInventarioContext();
 
   const [nombre, setNombre] = useState(initialValues.nombre ?? "");
   const [marca, setMarca] = useState(initialValues.marca ?? "");
@@ -81,6 +99,13 @@ export function ProductForm({
   const [nuevaSubcategoria, setNuevaSubcategoria] = useState("");
   const [nuevaNivel3, setNuevaNivel3] = useState("");
 
+  const inicial = ubicacionParaGuardar(initialValues.edificio, initialValues.espacio, initialValues.area);
+  const [edificio, setEdificio] = useState<string>(inicial.edificio ?? NINGUNO);
+  const [espacio, setEspacio] = useState<string>(inicial.espacio ?? NINGUNO);
+  const [nuevoEspacio, setNuevoEspacio] = useState("");
+  const [area, setArea] = useState<string>(inicial.area ?? NINGUNO);
+  const [nuevaArea, setNuevaArea] = useState("");
+
   // --- Opciones de cada nivel, derivadas del árbol de carpetas ---
   const catItems = withOtra(
     Object.keys(tree).sort().map((cat) => ({ label: `${getCategoriaConfig(cat).icon} ${cat}`, value: cat })),
@@ -90,6 +115,46 @@ export function ProductForm({
   const subCatItems = withOtra(subs.map((sub) => ({ label: `📁 ${sub}`, value: sub })), "➕ Agregar otra subcategoría...");
   const n3s = categoria && subcategoria && subcategoria !== OPCION_OTRA ? tree[categoria]?.[subcategoria] ?? [] : [];
   const nivel3Items = withOtra(n3s.map((n3) => ({ label: `📂 ${n3}`, value: n3 })), "➕ Agregar nueva sección...");
+
+  // --- Ubicación: el edificio sale del catálogo (se administra en SIGAT Web);
+  // el espacio y el área pueden ser nuevos: el servidor los agrega al sincronizar. ---
+  const edificioItems: PickerItem[] = [
+    { label: "— Sin edificio —", value: NINGUNO },
+    ...[...ubicaciones.edificios]
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { numeric: true }))
+      .map((e) => ({ label: `🏢 ${e.nombre}`, value: e.nombre })),
+  ];
+  const edificioId = ubicaciones.edificios.find((e) => e.nombre === edificio)?.id;
+  const espaciosDelEdificio = ubicaciones.espacios.filter((e) => e.edificio_id === edificioId);
+  const espacioItems: PickerItem[] = [
+    { label: "— Sin espacio —", value: NINGUNO },
+    ...espaciosDelEdificio
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { numeric: true }))
+      .map((e) => ({ label: `🚪 ${e.nombre}`, value: e.nombre })),
+    ...conValorActual(espaciosDelEdificio, espacio, "🚪"),
+    { label: "➕ Agregar otro espacio...", value: OTRO_ESPACIO },
+  ];
+  // Un espacio nuevo (escrito aquí) todavía no tiene áreas en el catálogo.
+  const espacioId = espaciosDelEdificio.find((e) => e.nombre === espacio)?.id;
+  const areasDelEspacio = ubicaciones.areas.filter((a) => a.espacio_id === espacioId);
+  const areaItems: PickerItem[] = [
+    { label: "— Sin departamento / área —", value: NINGUNO },
+    ...areasDelEspacio
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { numeric: true }))
+      .map((a) => ({ label: `🗂️ ${a.nombre}`, value: a.nombre })),
+    ...conValorActual(areasDelEspacio, area, "🗂️"),
+    { label: "➕ Agregar otro departamento o área...", value: OTRA_AREA },
+  ];
+  const cambiarEspacio = (value: string | null) => {
+    setEspacio(value ?? NINGUNO);
+    setArea(NINGUNO);
+    setNuevaArea("");
+  };
+  const cambiarEdificio = (value: string | null) => {
+    setEdificio(value ?? NINGUNO);
+    setNuevoEspacio("");
+    cambiarEspacio(NINGUNO);
+  };
 
   // Al cambiar un nivel, los niveles inferiores dejan de ser válidos.
   const cambiarCategoria = (value: string | null) => {
@@ -119,8 +184,21 @@ export function ProductForm({
       Alert.alert("Error", "Escribe el nombre de la nueva categoría, subcategoría o sección.");
       return;
     }
+    if (espacio === OTRO_ESPACIO && !normalizarUbicacion(nuevoEspacio)) {
+      Alert.alert("Error", "Escribe el nombre del nuevo espacio.");
+      return;
+    }
+    if (area === OTRA_AREA && !normalizarUbicacion(nuevaArea)) {
+      Alert.alert("Error", "Escribe el nombre del nuevo departamento o área.");
+      return;
+    }
     onSubmit({
       ...valores,
+      ...ubicacionParaGuardar(
+        edificio === NINGUNO ? null : edificio,
+        espacio === OTRO_ESPACIO ? nuevoEspacio : espacio === NINGUNO ? null : espacio,
+        area === OTRA_AREA ? nuevaArea : area === NINGUNO ? null : area
+      ),
       nombre: nombre.trim(),
       marca: marca.trim(),
       no_serie: noSerie.trim(),
@@ -185,6 +263,38 @@ export function ProductForm({
         />
         {nivel3 === OPCION_OTRA && (
           <ThemedInput placeholder="Ej. Laptops, Impresoras..." value={nuevaNivel3} onChangeText={setNuevaNivel3} />
+        )}
+
+        <FieldLabel>Edificio:</FieldLabel>
+        <ThemedPicker value={edificio} items={edificioItems} onChange={cambiarEdificio} modalTitle="Edificios" />
+        {ubicaciones.edificios.length === 0 && (
+          <Text style={{ color: colors.subText, fontSize: 12, marginTop: -10, marginBottom: 15 }}>
+            Aún no hay edificios. Se dan de alta en SIGAT Web › Inventario › Por edificio.
+          </Text>
+        )}
+
+        <FieldLabel>Espacio (aula, oficina, laboratorio...):</FieldLabel>
+        <ThemedPicker
+          value={espacio}
+          items={espacioItems}
+          onChange={cambiarEspacio}
+          modalTitle="Espacios"
+          disabled={edificio === NINGUNO}
+        />
+        {espacio === OTRO_ESPACIO && (
+          <ThemedInput placeholder="Ej. Aula 3, Laboratorio de Redes..." value={nuevoEspacio} onChangeText={setNuevoEspacio} />
+        )}
+
+        <FieldLabel>Departamento / área:</FieldLabel>
+        <ThemedPicker
+          value={area}
+          items={areaItems}
+          onChange={(value) => setArea(value ?? NINGUNO)}
+          modalTitle="Departamentos / áreas"
+          disabled={espacio === NINGUNO}
+        />
+        {area === OTRA_AREA && (
+          <ThemedInput placeholder="Ej. Contabilidad, Dirección, Sistemas..." value={nuevaArea} onChangeText={setNuevaArea} />
         )}
 
         {showCondicion && (
