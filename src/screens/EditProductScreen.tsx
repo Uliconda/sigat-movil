@@ -4,9 +4,9 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ProductForm, type ProductFormValues } from "../components/ProductForm";
 import { updateEquipo } from "../services/supabaseData";
 import { useTheme } from "../theme/useTheme";
-import type { MainStackParamList } from "../types";
+import type { StackParamList } from "../types";
 
-export function EditProductScreen({ route, navigation }: NativeStackScreenProps<MainStackParamList, "EditProduct">) {
+export function EditProductScreen({ route, navigation }: NativeStackScreenProps<StackParamList, "EditProduct">) {
   const item = route.params?.item;
   const { colors } = useTheme();
   const [loading, setLoading] = useState(false);

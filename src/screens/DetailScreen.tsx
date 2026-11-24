@@ -12,8 +12,9 @@ import { getPersonalLocal } from "../services/personalData";
 import { deleteEquipo, getEquipo, updateEquipo } from "../services/supabaseData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
-import type { Equipo, MainStackParamList, Personal } from "../types";
+import type { Equipo, StackParamList, Personal } from "../types";
 import { esAdministrativo } from "../utils/personal";
+import { describirUbicacion } from "../utils/ubicacion";
 
 type AccionMotivo = "BAJA" | "REACTIVAR";
 
@@ -74,7 +75,7 @@ function AdminAction({ icon, label, color, onPress }: AdminActionProps) {
   );
 }
 
-export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainStackParamList, "Detalles">) {
+export function DetailScreen({ route, navigation }: NativeStackScreenProps<StackParamList, "Detalles">) {
   const { userData } = useAuth();
   const { colors } = useTheme();
   const [item, setItem] = useState<Equipo>(route.params.item);
@@ -200,11 +201,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
 
   const abrirPersonal = () => {
     if (!item.personal_id) return;
-    navigation.getParent()?.navigate("Personal", {
-      screen: "PersonalDetalle",
-      params: { personalId: item.personal_id },
-      initial: false,
-    });
+    navigation.navigate("PersonalDetalle", { personalId: item.personal_id });
   };
 
   const handleConfirmReasonAction = async () => {
@@ -263,7 +260,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
             try {
               await deleteEquipo(item.id);
               Alert.alert("Eliminado", "El equipo ha sido borrado del inventario.");
-              navigation.navigate("InventoryList");
+              navigation.popToTop();
             } catch {
               Alert.alert("Error", "No se pudo eliminar el equipo.");
             }
@@ -309,6 +306,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
           <Field label="Nombre del Equipo" value={item.nombre ?? "Sin nombre"} valueStyle={styles.valueLarge} />
           <Field label="ID / Código" value={item.id} />
           <Field label="Categoría" value={item.categoria || "General"} />
+          <Field label="Ubicación" value={describirUbicacion(item) ?? "Sin edificio asignado"} />
 
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 15 }}>
             <View style={{ flex: 1, paddingRight: 10 }}>
@@ -393,7 +391,7 @@ export function DetailScreen({ route, navigation }: NativeStackScreenProps<MainS
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity onPress={() => navigation.navigate("InventoryList")} style={{ alignSelf: "center", marginTop: 20 }}>
+        <TouchableOpacity onPress={() => navigation.popToTop()} style={{ alignSelf: "center", marginTop: 20 }}>
           <Text style={{ color: colors.primary, fontSize: 16, fontWeight: "bold" }}>VOLVER AL INICIO</Text>
         </TouchableOpacity>
         <View style={{ height: 50 }} />

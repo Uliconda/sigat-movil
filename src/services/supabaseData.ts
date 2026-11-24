@@ -4,14 +4,18 @@ import { AppState } from "react-native";
 import type {
   Carpeta,
   ConflictResolution,
+  Area,
+  Edificio,
   Equipo,
   EquipoData,
   EquipoRow,
+  Espacio,
   HistorialEntry,
   NewQueueOperation,
   Perfil,
   QueueOperation,
   SyncStatus,
+  Ubicaciones,
 } from "../types";
 import {
   applyQueue,
@@ -271,6 +275,54 @@ export const renombrarCarpeta = (id: string, nombre: string) =>
   carpetaRpc<void>("renombrar_carpeta", { p_id: id, p_nombre: nombre });
 
 export const eliminarCarpeta = (id: string) => carpetaRpc<void>("eliminar_carpeta", { p_id: id });
+
+// ==========================================
+// UBICACIONES (Edificio > Espacio > Departamento / área)
+// ==========================================
+// El catálogo se administra en SIGAT Web; la app solo lo lee (y lo guarda para
+// usarlo sin conexión). Un espacio o área nuevos escritos en el formulario los
+// agrega el servidor al sincronizar el equipo.
+
+const SIN_UBICACIONES: Ubicaciones = { edificios: [], espacios: [], areas: [] };
+
+export async function getUbicacionesLocal(): Promise<Ubicaciones> {
+  const userId = await getUserId();
+  const guardadas = await readJson<Partial<Ubicaciones>>(storageKey(userId, "ubicaciones"), SIN_UBICACIONES);
+  // Las versiones anteriores guardaban el catálogo sin áreas.
+  return { edificios: guardadas.edificios ?? [], espacios: guardadas.espacios ?? [], areas: guardadas.areas ?? [] };
+}
+
+export async function getUbicaciones(): Promise<Ubicaciones> {
+  const userId = await getUserId();
+  try {
+    const network = await NetInfo.fetch();
+    if (network.isConnected === false) throw new OfflineError();
+    const [edificios, espacios, areas] = await Promise.all([
+      supabase.from("edificios").select("id, nombre"),
+      supabase.from("espacios").select("id, edificio_id, nombre"),
+      supabase.from("areas").select("id, espacio_id, nombre"),
+    ]);
+    if (edificios.error) throw edificios.error;
+    if (espacios.error) throw espacios.error;
+    // Sin la migración de áreas, el resto del catálogo sigue funcionando.
+    if (areas.error && !isMissingTable(areas.error)) throw areas.error;
+    if (areas.error) console.warn("Falta la tabla areas en Supabase (migración 20261119120000_areas.sql).");
+    const ubicaciones: Ubicaciones = {
+      edificios: edificios.data as Edificio[],
+      espacios: espacios.data as Espacio[],
+      areas: areas.error ? [] : (areas.data as Area[]),
+    };
+    await AsyncStorage.setItem(storageKey(userId, "ubicaciones"), JSON.stringify(ubicaciones));
+    return ubicaciones;
+  } catch (error) {
+    if (isMissingTable(error)) {
+      console.warn("Falta la tabla edificios en Supabase (migración 20261119000000_edificios.sql).");
+      return SIN_UBICACIONES;
+    }
+    if (!isNetworkError(error)) throw error;
+    return getUbicacionesLocal();
+  }
+}
 
 // ==========================================
 // COLA DE CAMBIOS SIN CONEXIÓN

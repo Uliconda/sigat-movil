@@ -9,7 +9,7 @@ import { usePersonal } from "../hooks/usePersonal";
 import { eliminarPersonal } from "../services/personalData";
 import { styles } from "../theme/styles";
 import { useTheme } from "../theme/useTheme";
-import type { Personal, PersonalStackParamList } from "../types";
+import type { Personal, StackParamList } from "../types";
 import {
   agruparPorDepartamento,
   buscarPersonal,
@@ -18,7 +18,7 @@ import {
   estaActivo,
 } from "../utils/personal";
 
-export function PersonalListScreen({ navigation }: NativeStackScreenProps<PersonalStackParamList, "PersonalList">) {
+export function PersonalListScreen({ navigation }: NativeStackScreenProps<StackParamList, "PersonalList">) {
   const { userData } = useAuth();
   const { colors } = useTheme();
   const { personal, equipos, cargando, refrescando, refrescar, error } = usePersonal();

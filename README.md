@@ -184,6 +184,8 @@ Llena `.env` con la URL del proyecto Supabase y la clave **publishable**:
 ```dotenv
 EXPO_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key>
+# Opcional: dirección de SIGAT Web para el botón "Ver reportes en SIGAT Web".
+# EXPO_PUBLIC_SIGAT_WEB_URL=https://sigat.cesba-queretaro.edu.mx
 ```
 
 Las variables `EXPO_PUBLIC_*` se incluyen en la app, así que nunca uses la
